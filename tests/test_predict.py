@@ -37,7 +37,7 @@ def test_rejected_inputs(text, code):
 
 @pytest.mark.parametrize(
     "text",
-    ["القهوة ممتازة", "قَهْوَةٌ لذيييييذة", "قـــهوة حلوة", "ما عجبني الكيك 😡", "كوفي ممتاز coffee", "الجلسه حلوه ٣ نجوم"],
+    ["ﻗﻬﻮﺓ ﻣﻤﺘﺎﺯﺓ", "القهوة ممتازة", "قَهْوَةٌ لذيييييذة", "قـــهوة حلوة", "ما عجبني الكيك 😡", "كوفي ممتاز coffee", "الجلسه حلوه ٣ نجوم"],
 )
 def test_accepted_inputs(text):
     assert check_review(text)
@@ -85,8 +85,9 @@ def test_negation_is_not_ignored():
 @needs_models
 def test_diacritics_tatweel_and_repeats_do_not_flip_the_answer():
     base = predict("القهوة ممتازة").aspect.label
-    assert predict("القَهْوَةُ ممتازة").aspect.label == base
-    assert predict("القهـــوة ممتازة").aspect.label == base
+    for variant in ("القَهْوَةُ ممتازة", "القهـــوة ممتازة"):
+        r = predict(variant)
+        assert r.aspect.label == base and r.sentiment.label == "ايجابي"
 
 
 @needs_models
@@ -113,7 +114,7 @@ def test_cpu_latency_for_one_review():
     start = time.perf_counter()
     for _ in range(20):
         predict("القهوة ممتازة والخدمة سريعة والمكان نظيف")
-    assert (time.perf_counter() - start) / 20 < 0.5
+    assert (time.perf_counter() - start) / 20 < 0.1
 
 
 @needs_models
@@ -127,3 +128,12 @@ def test_app_smoke():
     assert not at.exception and len(at.subheader) == 2
     at.text_area[0].set_value("hello world").run()
     assert not at.exception and at.warning
+
+
+@needs_models
+def test_levels_follow_the_card_thresholds():
+    card = model_card()
+    r = predict("القهوة ممتازة والطعم رائع")
+    for task in ("sentiment", "aspect"):
+        t = getattr(r, task)
+        assert t.level == certainty_level(t.score, card["tasks"][task]["certainty"]["thresholds"])

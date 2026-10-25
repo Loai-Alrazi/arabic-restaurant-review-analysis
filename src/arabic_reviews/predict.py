@@ -16,6 +16,7 @@ from dataclasses import dataclass, field
 from functools import lru_cache
 
 import joblib
+import sklearn
 
 from . import config
 
@@ -28,16 +29,20 @@ CARD_FILE = MODELS_DIR / "model_card.json"
 MIN_ARABIC_LETTERS = 2
 MAX_CHARS = 1000
 MIN_ARABIC_SHARE = 0.5
-TYPICAL_MAX_CHARS = 204
 
 ARABIC_LETTER_RE = re.compile("[ء-غف-يٱ-ۓۺ-ۿ]")
+
+
+def _arabic_count(text: str) -> int:
+    """Arabic letters, also when written in presentation forms (counted on an NFKC copy)."""
+    return len(ARABIC_LETTER_RE.findall(unicodedata.normalize("NFKC", text)))
 LEVEL_WORDS = {"high": "عالٍ", "medium": "متوسط", "low": "منخفض"}
 TASKS = ("sentiment", "aspect")
 
 # Reasons for refusing an input (stable codes, Arabic messages for the page).
 REJECTIONS = {
     "empty": "النص فارغ. اكتب مراجعة عن مقهى.",
-    "too_short": "النص قصير جدًا؛ يلزم كلمة عربية واحدة على الأقل.",
+    "too_short": "النص قصير جدًا؛ يلزم حرفان عربيان على الأقل.",
     "not_arabic": "النص ليس عربيًا في معظمه. النموذج مدرَّب على مراجعات عربية فقط.",
     "too_long": f"النص أطول من {MAX_CHARS} حرفًا. اختصره إلى مراجعة واحدة.",
 }
@@ -79,11 +84,11 @@ def check_review(text) -> str:
     """Return the review to score, or raise ``InvalidReview``."""
     if not isinstance(text, str) or not text.strip():
         raise InvalidReview("empty")
-    text = unicodedata.normalize("NFC", text).strip()
+    text = text.strip()
     if len(text) > MAX_CHARS:
         raise InvalidReview("too_long")
-    arabic = len(ARABIC_LETTER_RE.findall(text))
-    letters = sum(ch.isalpha() for ch in text)
+    arabic = _arabic_count(text)
+    letters = sum(ch.isalpha() for ch in unicodedata.normalize("NFKC", text))
     if arabic == 0 or letters == 0 or arabic / letters < MIN_ARABIC_SHARE:
         raise InvalidReview("not_arabic")
     if arabic < MIN_ARABIC_LETTERS:
@@ -142,10 +147,12 @@ def predict(text: str) -> Prediction:
         sentiment = _task_result(models["sentiment"], text, card["tasks"]["sentiment"])
         aspect = _task_result(models["aspect"], text, card["tasks"]["aspect"])
     notes = []
-    if len(text) > TYPICAL_MAX_CHARS:
+    if len(text) > model_card()["input"]["development_length_chars"]["p99"]:
         notes.append("long_text")
-    if len(ARABIC_LETTER_RE.findall(text)) < 4:
+    if _arabic_count(text) < 4:
         notes.append("very_short")
+    if card["versions"]["scikit-learn"] != sklearn.__version__:
+        notes.append("library_version")
     return Prediction(sentiment=sentiment, aspect=aspect, notes=notes)
 
 

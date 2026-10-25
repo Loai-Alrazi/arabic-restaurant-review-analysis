@@ -25,12 +25,15 @@ EXAMPLES = {
 NOTES = {
     "long_text": "المراجعة أطول من معظم مراجعات التدريب؛ قد تقل الدقة.",
     "very_short": "المراجعة قصيرة جدًا؛ النتيجة أقل ثباتًا.",
+    "library_version": "إصدار المكتبة يختلف عن إصدار التدريب؛ أعد بناء النماذج.",
 }
-LEVEL_TEXT = {
-    "high": "في هذا المستوى كانت معظم التنبؤات صحيحة في اختبار المشروع.",
-    "medium": "في هذا المستوى أخطأ النموذج أحيانًا في اختبار المشروع.",
-    "low": "النموذج غير محسوم هنا؛ يُنصح بقراءة المراجعة بنفسك.",
-}
+def level_text(task: str, level: str) -> str:
+    """Hold-out accuracy of the band, from the model card."""
+    row = next(r for r in card["tasks"][task]["certainty"]["test_levels"] if r["level"] == level)
+    return f"في الاختبار المحجوز كان {row['accuracy']:.0%} من تنبؤات هذا المستوى صحيحًا ({row['n']} مراجعة)."
+
+
+card = model_card()
 
 st.set_page_config(page_title="تحليل مراجعات المقاهي", page_icon="☕", layout="centered")
 st.markdown(
@@ -57,21 +60,20 @@ if review.strip():
     except InvalidReview as err:
         st.warning(err.message)
     except FileNotFoundError as err:
-        st.error(str(err))
+        st.error("النماذج المحفوظة غير موجودة. شغّل: python -m arabic_reviews final --check")
     else:
         left, right = st.columns(2)
-        for col, title, task in ((left, "الجانب الرئيسي", result.aspect), (right, "المشاعر", result.sentiment)):
+        for col, title, key, task in ((left, "الجانب الرئيسي", "aspect", result.aspect), (right, "المشاعر", "sentiment", result.sentiment)):
             with col:
                 st.subheader(title)
                 st.markdown(f"### {task.label}")
                 st.write(f"مستوى اليقين: **{task.level_word}**")
-                st.caption(LEVEL_TEXT[task.level])
+                st.caption(level_text(key, task.level))
                 if task.second_label:
                     st.write(f"البديل الأقرب: {task.second_label}")
         for note in result.notes:
             st.info(NOTES[note])
 
-card = model_card()
 with st.expander("حدود الادعاء ونتائج الاختبار"):
     st.markdown(
         "- كل مراجعة لها **جانب رئيسي واحد** ومشاعر واحدة؛ لا يحلل النموذج كل الجوانب المذكورة في النص.\n"
