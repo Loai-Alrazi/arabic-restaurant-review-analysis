@@ -29,7 +29,19 @@ def cmd_validate() -> None:
     print(json.dumps({"lineage": result.lineage["excluded_by_reason"], "sha256": hashes}, indent=1))
 
 
-COMMANDS = {"ingest": cmd_ingest, "validate": cmd_validate}
+def cmd_split() -> None:
+    import hashlib
+
+    from .reports import write_split_outputs
+    from .split import make_split
+
+    data = pd.read_csv(config.VALIDATED_FILE, dtype={"text": str}, keep_default_na=False)
+    validated_sha = hashlib.sha256(config.VALIDATED_FILE.read_bytes()).hexdigest()
+    hashes = write_split_outputs(data, make_split(data), validated_sha)
+    print(json.dumps({"sha256": hashes}, indent=1))
+
+
+COMMANDS = {"ingest": cmd_ingest, "validate": cmd_validate, "split": cmd_split}
 
 
 def main(argv: list[str] | None = None) -> None:

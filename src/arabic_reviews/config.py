@@ -33,3 +33,13 @@ RAW_COLUMNS = {"Review": "text", "Attribute": "aspect", "Result": "sentiment"}
 EXPECTED_ROWS = 3000
 ASPECTS = ("المأكولات", "المشروبات", "الخدمة", "الجلسات", "الاسعار")
 SENTIMENTS = ("ايجابي", "سلبي", "محايد")
+
+# Split (M2). Only the text-free assignment file is published.
+SPLITS_DIR = DATA_DIR / "splits"
+SPLIT_FILE = SPLITS_DIR / "split_v1.csv"
+DEV_FILE = PROCESSED_DIR / "dev.csv"
+TEST_FILE = PROCESSED_DIR / "test.csv"
+SPLIT_REPORT = REPORTS_DIR / "split.md"
+NEAR_DUPLICATES_FILE = REPORTS_DIR / "near_duplicates.csv"
+EDA_REPORT = REPORTS_DIR / "eda.md"
+FIGURES_DIR = REPORTS_DIR / "figures"

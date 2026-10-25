@@ -25,5 +25,9 @@ jobs:
         run: |
           python -m arabic_reviews validate
           git diff --exit-code -- reports/
+      - name: Regenerated split and leakage report must match the committed ones byte for byte
+        run: |
+          python -m arabic_reviews split
+          git diff --exit-code -- data/splits/ reports/
       - name: Run tests
         run: pytest -q
