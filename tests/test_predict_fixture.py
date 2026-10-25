@@ -108,7 +108,7 @@ def test_presentation_forms_are_refused(text):
     assert err.value.code == "unreadable" and err.value.message
 
 
-@pytest.mark.parametrize("text", ["القهوة ممتازة﻿", "ما شاء ﷲ القهوة ممتازة", "القهوة ممتازة ﺟﺪﺍ"])
+@pytest.mark.parametrize("text", ["القهوة ممتازة﻿", "ما شاء ﷲ القهوة ممتازة", "القهوة ممتازة ﺟﺪﺍ", "﴿القهوة ممتازة﴾ ﷼"])
 def test_a_few_display_glyphs_beside_plain_text_are_accepted(tiny_models, text):
     assert predict(text)
 

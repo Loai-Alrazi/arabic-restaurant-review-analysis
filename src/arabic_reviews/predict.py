@@ -36,7 +36,7 @@ MIN_ARABIC_SHARE = 0.5
 ARABIC_LETTER_RE = re.compile("[ء-غف-يٱ-ۓۺ-ۿ]")
 # Arabic Presentation Forms-A/B letters: display-only glyphs that the saved pipelines (no normalisation) do not
 # map to the plain letters, so they reach the model as unknown characters. U+FEFF (zero-width mark) is not one.
-PRESENTATION_FORMS_RE = re.compile(r"[ﭐ-﷿ﹰ-﻾]")
+PRESENTATION_FORMS_RE = re.compile(r"[\ufb50-\ufbc1\ufbd3-\ufd3d\ufd50-\ufd8f\ufd92-\ufdc7\ufdf0-\ufdfb\ufe70-\ufefc]")
 # Library versions that decide how a saved pipeline loads and computes (pandas only builds the training tables).
 RUNTIME_LIBRARIES = ("scikit-learn", "numpy", "joblib")
 

@@ -267,15 +267,29 @@ def dev_digest(pipeline, texts) -> str:
     return hashlib.sha256(proba.tobytes()).hexdigest()
 
 
+def runtime_versions() -> dict:
+    return dict(protocol.library_versions(), joblib=joblib.__version__, python=platform.python_version())
+
+
 def record_digests(digests: dict, path=None) -> bool | None:
-    """Store the digests on first use (None); afterwards report whether they are unchanged. Never overwrites."""
+    """Store the digests on first use (None); afterwards report whether they are unchanged. Never overwrites.
+
+    Different digests under the same library versions mean the code, data or fitting changed: that raises.
+    Under other versions the difference is reported (False) so the demo models can still be rebuilt."""
     path = path or DIGESTS_FILE
+    versions = runtime_versions()
     if not path.exists():
         path.parent.mkdir(parents=True, exist_ok=True)
-        stored = dict(versions=dict(protocol.library_versions(), joblib=joblib.__version__), digests=digests)
-        path.write_text(json.dumps(stored, indent=1) + "\n", encoding="utf-8", newline="\n")
+        path.write_text(json.dumps(dict(versions=versions, digests=digests), indent=1) + "\n",
+                        encoding="utf-8", newline="\n")
         return None
-    return json.loads(path.read_text(encoding="utf-8"))["digests"] == digests
+    stored = json.loads(path.read_text(encoding="utf-8"))
+    if stored["digests"] == digests:
+        return True
+    if stored["versions"] == versions:
+        raise RuntimeError("the rebuilt models differ from the recorded ones under identical library versions; "
+                           "the saved models were left untouched")
+    return False
 
 
 def evaluate(test: pd.DataFrame, predicted: dict, p: dict) -> dict:
@@ -319,11 +333,13 @@ def run_final(rerun_reason: str | None = None, check_only: bool = False) -> dict
     check_fingerprint(rebuilt, frozen)
     p = with_frozen_results(rebuilt, frozen)
     models = {task: fit_models(dev, p["tasks"][task], task) for task in experiments.TASKS}
-    save_models(models)
-    if check_only:
+    if check_only:  # compare before the saved files are replaced
         digests = {task: dev_digest(models[task]["final"], dev["text"]) for task in experiments.TASKS}
+        unchanged = record_digests(digests)
+        save_models(models)
         return dict(fingerprint=p["fingerprint"], commit=sha, test_read=False, digests=digests,
-                    digests_unchanged=record_digests(digests))
+                    digests_unchanged=unchanged)
+    save_models(models)
     with _lock():
         entries = previous_reads()  # a run that finished meanwhile counts
         check_access(entries, rerun_reason)

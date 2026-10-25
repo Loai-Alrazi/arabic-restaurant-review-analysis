@@ -280,9 +280,19 @@ def test_dev_digest_is_stable_and_detects_a_different_model():
     assert final.dev_digest(a, texts) != final.dev_digest(c, texts)
 
 
+def test_same_version_digest_difference_raises(tmp_path, monkeypatch):
+    path = tmp_path / "digests.json"
+    final.record_digests({"sentiment": "aa"}, path)
+    with pytest.raises(RuntimeError):
+        final.record_digests({"sentiment": "bb"}, path)
+    monkeypatch.setattr(final, "runtime_versions", lambda: {"scikit-learn": "other"})
+    assert final.record_digests({"sentiment": "bb"}, path) is False  # other libraries: reported only
+
+
 def test_record_digests_stores_then_compares(tmp_path):
     path = tmp_path / "digests.json"
     assert final.record_digests({"sentiment": "aa", "aspect": "bb"}, path) is None  # first time: stored
     assert final.record_digests({"sentiment": "aa", "aspect": "bb"}, path) is True
-    assert final.record_digests({"sentiment": "aa", "aspect": "cc"}, path) is False
+    with pytest.raises(RuntimeError):
+        final.record_digests({"sentiment": "aa", "aspect": "cc"}, path)
     assert json.loads(path.read_text(encoding="utf-8"))["digests"]["aspect"] == "bb"  # a mismatch never overwrites
