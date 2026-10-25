@@ -185,7 +185,12 @@ def test_build_protocol_end_to_end_on_a_toy_log(tmp_path, monkeypatch):
         assert "clf__max_iter" in t["pipelines"]["final"]
     again = protocol.build_protocol(dev, rerun=True)  # reruns are reused, after their checks
     assert again["fingerprint"] == p["fingerprint"]
-    md = protocol.protocol_markdown(p)
+    monkeypatch.setattr(protocol, "PROTOCOL_JSON", tmp_path / "protocol.json")
+    monkeypatch.setattr(protocol, "PROTOCOL_MD", tmp_path / "final_protocol.md")
+    protocol.write_protocol(p)
+    stored = json.loads((tmp_path / "protocol.json").read_text(encoding="utf-8"))
+    assert stored["fingerprint"] == p["fingerprint"] and "clf__C" in stored["tasks"]["sentiment"]["pipelines"]["final"]
+    md = (tmp_path / "final_protocol.md").read_text(encoding="utf-8")
     assert p["fingerprint"] in md and "One-shot test procedure" in md
 
 

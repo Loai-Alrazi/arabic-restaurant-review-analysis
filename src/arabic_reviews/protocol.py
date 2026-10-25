@@ -165,9 +165,15 @@ def pipeline_params(spec: dict) -> dict:
     """Every scalar parameter of the built pipeline, library defaults included."""
     from .features import build_pipeline
 
+    def plain(v) -> bool:
+        if isinstance(v, (list, tuple)):
+            return all(plain(x) for x in v)
+        if isinstance(v, dict):
+            return all(plain(x) for x in v.values())
+        return v is None or isinstance(v, (bool, int, float, str))
+
     params = build_pipeline(spec).get_params(deep=True)
-    return {k: v for k, v in sorted(params.items())
-            if v is None or isinstance(v, (bool, int, float, str, tuple, list, dict))}
+    return {k: v for k, v in sorted(params.items()) if plain(v)}
 
 
 def library_versions() -> dict:
