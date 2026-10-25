@@ -1,0 +1,11 @@
+[
+ {
+  "run": 1,
+  "time": "2026-10-25T10:29:29+00:00",
+  "commit": "b577bb0",
+  "fingerprint": "ec20dc6ba81703194ac2b536f51698cb75d38427d44fa04f6d2f6401a7977b41",
+  "test_sha256": "142bac8eafa549b39558c8a27c429d8cf936e4f4624521f56dbc7856f6c3c627",
+  "test_rows": 554,
+  "reason": null
+ }
+]
