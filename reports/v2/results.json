@@ -1,7 +1,19 @@
 {
  "plan": "docs/V2_PLAN.md",
  "cues_sha256": "ac5460bb887a6807941a15c95c55fead43c829fa5d71c9b119c92192eff422e0",
- "git_sha": "0b262c8",
+ "git_sha": "93a4361",
+ "sources": {
+  "config": "e206cb63a808929820326c245954e28b7d108a3267fb7413fdd626c8f59dfc47",
+  "cues": "ac5460bb887a6807941a15c95c55fead43c829fa5d71c9b119c92192eff422e0",
+  "experiments": "6320fe5d206161ef497c4b62a8670d93edf13605d60c6063c75843bfa32af234",
+  "features": "6bd50b442898756cc4f31a6188511971f383a873eee9527c23f3236d5d3d81fd",
+  "final": "263611f9512d3aca98c28e90f860ad98488064dffcde44aa63d468c6caaa0e68",
+  "predict": "8bf6b7afe4606bbc38ecdfc31172d3e2fba5fd445275faf5107ce8652756a85c",
+  "protocol": "de377daf4005ecbdaa9b0a270de6b535e083c29846c9fa379fb7119b67c36752",
+  "split": "9adcb0d0654a0a7f742965958546199bff492cda8cfb270a2b101c79b8905efa",
+  "text": "25e502b0feac44d3b6a30fbae86abf67fc86a4db2e73d52134fe23b624caaeca",
+  "v2": "7ffb73a2fa9338766b350ad8f3930efb28badc6e638ddb8b5654a1dadf1f9ad6"
+ },
  "dev": {
   "rows": 2215,
   "sha256": "f0d6dc75ebd542d24cb04993bd4a492c13bd14433d91b05b58828acbd795c708",
@@ -425,7 +437,11 @@
       "rows": 3329,
       "groups": 1125,
       "share": 0.500978,
-      "accuracy": 0.936317
+      "accuracy": 0.936317,
+      "interval": [
+       0.921889,
+       0.949636
+      ]
      },
      {
       "label": "ايجابي",
@@ -433,7 +449,11 @@
       "rows": 600,
       "groups": 332,
       "share": 0.090293,
-      "accuracy": 0.69
+      "accuracy": 0.69,
+      "interval": [
+       0.635366,
+       0.743632
+      ]
      },
      {
       "label": "ايجابي",
@@ -441,7 +461,11 @@
       "rows": 4,
       "groups": 4,
       "share": 0.000602,
-      "accuracy": 0.25
+      "accuracy": 0.25,
+      "interval": [
+       0.0,
+       1.0
+      ]
      },
      {
       "label": "سلبي",
@@ -449,7 +473,11 @@
       "rows": 143,
       "groups": 60,
       "share": 0.02152,
-      "accuracy": 0.902098
+      "accuracy": 0.902098,
+      "interval": [
+       0.798609,
+       0.984015
+      ]
      },
      {
       "label": "سلبي",
@@ -457,7 +485,11 @@
       "rows": 925,
       "groups": 379,
       "share": 0.139202,
-      "accuracy": 0.785946
+      "accuracy": 0.785946,
+      "interval": [
+       0.739227,
+       0.828452
+      ]
      },
      {
       "label": "سلبي",
@@ -465,7 +497,11 @@
       "rows": 1003,
       "groups": 480,
       "share": 0.150941,
-      "accuracy": 0.510469
+      "accuracy": 0.510469,
+      "interval": [
+       0.464291,
+       0.561257
+      ]
      },
      {
       "label": "محايد",
@@ -473,7 +509,8 @@
       "rows": 0,
       "groups": 0,
       "share": 0.0,
-      "accuracy": null
+      "accuracy": null,
+      "interval": null
      },
      {
       "label": "محايد",
@@ -481,7 +518,8 @@
       "rows": 0,
       "groups": 0,
       "share": 0.0,
-      "accuracy": null
+      "accuracy": null,
+      "interval": null
      },
      {
       "label": "محايد",
@@ -489,7 +527,11 @@
       "rows": 641,
       "groups": 283,
       "share": 0.096464,
-      "accuracy": 0.369735
+      "accuracy": 0.369735,
+      "interval": [
+       0.306787,
+       0.428135
+      ]
      }
     ]
    },
@@ -604,7 +646,11 @@
       "rows": 1785,
       "groups": 643,
       "share": 0.268623,
-      "accuracy": 0.977031
+      "accuracy": 0.977031,
+      "interval": [
+       0.965537,
+       0.988064
+      ]
      },
      {
       "label": "ايجابي",
@@ -612,7 +658,11 @@
       "rows": 1026,
       "groups": 507,
       "share": 0.154402,
-      "accuracy": 0.918129
+      "accuracy": 0.918129,
+      "interval": [
+       0.891965,
+       0.941786
+      ]
      },
      {
       "label": "ايجابي",
@@ -620,7 +670,11 @@
       "rows": 1122,
       "groups": 516,
       "share": 0.168849,
-      "accuracy": 0.754011
+      "accuracy": 0.754011,
+      "interval": [
+       0.712912,
+       0.794631
+      ]
      },
      {
       "label": "سلبي",
@@ -628,7 +682,11 @@
       "rows": 143,
       "groups": 60,
       "share": 0.02152,
-      "accuracy": 0.902098
+      "accuracy": 0.902098,
+      "interval": [
+       0.798609,
+       0.984015
+      ]
      },
      {
       "label": "سلبي",
@@ -636,7 +694,11 @@
       "rows": 925,
       "groups": 379,
       "share": 0.139202,
-      "accuracy": 0.785946
+      "accuracy": 0.785946,
+      "interval": [
+       0.739227,
+       0.828452
+      ]
      },
      {
       "label": "سلبي",
@@ -644,7 +706,11 @@
       "rows": 1003,
       "groups": 480,
       "share": 0.150941,
-      "accuracy": 0.510469
+      "accuracy": 0.510469,
+      "interval": [
+       0.464291,
+       0.561257
+      ]
      },
      {
       "label": "محايد",
@@ -652,7 +718,8 @@
       "rows": 0,
       "groups": 0,
       "share": 0.0,
-      "accuracy": null
+      "accuracy": null,
+      "interval": null
      },
      {
       "label": "محايد",
@@ -660,7 +727,8 @@
       "rows": 0,
       "groups": 0,
       "share": 0.0,
-      "accuracy": null
+      "accuracy": null,
+      "interval": null
      },
      {
       "label": "محايد",
@@ -668,7 +736,11 @@
       "rows": 641,
       "groups": 283,
       "share": 0.096464,
-      "accuracy": 0.369735
+      "accuracy": 0.369735,
+      "interval": [
+       0.306787,
+       0.428135
+      ]
      }
     ]
    },
@@ -693,7 +765,11 @@
      "rows": 1785,
      "groups": 643,
      "share": 0.268623,
-     "accuracy": 0.977031
+     "accuracy": 0.977031,
+     "interval": [
+      0.965537,
+      0.988064
+     ]
     },
     {
      "label": "ايجابي",
@@ -701,7 +777,11 @@
      "rows": 1026,
      "groups": 507,
      "share": 0.154402,
-     "accuracy": 0.918129
+     "accuracy": 0.918129,
+     "interval": [
+      0.891965,
+      0.941786
+     ]
     },
     {
      "label": "ايجابي",
@@ -709,7 +789,11 @@
      "rows": 1122,
      "groups": 516,
      "share": 0.168849,
-     "accuracy": 0.754011
+     "accuracy": 0.754011,
+     "interval": [
+      0.712912,
+      0.794631
+     ]
     },
     {
      "label": "سلبي",
@@ -717,7 +801,11 @@
      "rows": 143,
      "groups": 60,
      "share": 0.02152,
-     "accuracy": 0.902098
+     "accuracy": 0.902098,
+     "interval": [
+      0.798609,
+      0.984015
+     ]
     },
     {
      "label": "سلبي",
@@ -725,7 +813,11 @@
      "rows": 925,
      "groups": 379,
      "share": 0.139202,
-     "accuracy": 0.785946
+     "accuracy": 0.785946,
+     "interval": [
+      0.739227,
+      0.828452
+     ]
     },
     {
      "label": "سلبي",
@@ -733,7 +825,11 @@
      "rows": 1003,
      "groups": 480,
      "share": 0.150941,
-     "accuracy": 0.510469
+     "accuracy": 0.510469,
+     "interval": [
+      0.464291,
+      0.561257
+     ]
     },
     {
      "label": "محايد",
@@ -741,7 +837,8 @@
      "rows": 0,
      "groups": 0,
      "share": 0.0,
-     "accuracy": null
+     "accuracy": null,
+     "interval": null
     },
     {
      "label": "محايد",
@@ -749,7 +846,8 @@
      "rows": 0,
      "groups": 0,
      "share": 0.0,
-     "accuracy": null
+     "accuracy": null,
+     "interval": null
     },
     {
      "label": "محايد",
@@ -757,7 +855,11 @@
      "rows": 641,
      "groups": 283,
      "share": 0.096464,
-     "accuracy": 0.369735
+     "accuracy": 0.369735,
+     "interval": [
+      0.306787,
+      0.428135
+     ]
     }
    ],
    "v1_thresholds": {
@@ -1089,7 +1191,11 @@
       "rows": 899,
       "groups": 299,
       "share": 0.13529,
-      "accuracy": 0.957731
+      "accuracy": 0.957731,
+      "interval": [
+       0.934968,
+       0.976798
+      ]
      },
      {
       "label": "المأكولات",
@@ -1097,7 +1203,8 @@
       "rows": 0,
       "groups": 0,
       "share": 0.0,
-      "accuracy": null
+      "accuracy": null,
+      "interval": null
      },
      {
       "label": "المأكولات",
@@ -1105,7 +1212,11 @@
       "rows": 88,
       "groups": 50,
       "share": 0.013243,
-      "accuracy": 0.579545
+      "accuracy": 0.579545,
+      "interval": [
+       0.432631,
+       0.738636
+      ]
      },
      {
       "label": "المشروبات",
@@ -1113,7 +1224,11 @@
       "rows": 1841,
       "groups": 606,
       "share": 0.27705,
-      "accuracy": 0.968495
+      "accuracy": 0.968495,
+      "interval": [
+       0.954333,
+       0.981304
+      ]
      },
      {
       "label": "المشروبات",
@@ -1121,7 +1236,11 @@
       "rows": 124,
       "groups": 70,
       "share": 0.018661,
-      "accuracy": 0.758065
+      "accuracy": 0.758065,
+      "interval": [
+       0.649231,
+       0.862069
+      ]
      },
      {
       "label": "المشروبات",
@@ -1129,7 +1248,11 @@
       "rows": 80,
       "groups": 54,
       "share": 0.012039,
-      "accuracy": 0.5375
+      "accuracy": 0.5375,
+      "interval": [
+       0.395314,
+       0.673933
+      ]
      },
      {
       "label": "الخدمة",
@@ -1137,7 +1260,11 @@
       "rows": 1150,
       "groups": 390,
       "share": 0.173062,
-      "accuracy": 0.954783
+      "accuracy": 0.954783,
+      "interval": [
+       0.934852,
+       0.972897
+      ]
      },
      {
       "label": "الخدمة",
@@ -1145,7 +1272,11 @@
       "rows": 114,
       "groups": 70,
       "share": 0.017156,
-      "accuracy": 0.719298
+      "accuracy": 0.719298,
+      "interval": [
+       0.601523,
+       0.835317
+      ]
      },
      {
       "label": "الخدمة",
@@ -1153,7 +1284,11 @@
       "rows": 431,
       "groups": 186,
       "share": 0.064861,
-      "accuracy": 0.512761
+      "accuracy": 0.512761,
+      "interval": [
+       0.433312,
+       0.587421
+      ]
      },
      {
       "label": "الجلسات",
@@ -1161,7 +1296,11 @@
       "rows": 930,
       "groups": 307,
       "share": 0.139955,
-      "accuracy": 0.965591
+      "accuracy": 0.965591,
+      "interval": [
+       0.944856,
+       0.984255
+      ]
      },
      {
       "label": "الجلسات",
@@ -1169,7 +1308,11 @@
       "rows": 163,
       "groups": 79,
       "share": 0.02453,
-      "accuracy": 0.766871
+      "accuracy": 0.766871,
+      "interval": [
+       0.654019,
+       0.863915
+      ]
      },
      {
       "label": "الجلسات",
@@ -1177,7 +1320,11 @@
       "rows": 108,
       "groups": 59,
       "share": 0.016253,
-      "accuracy": 0.527778
+      "accuracy": 0.527778,
+      "interval": [
+       0.383149,
+       0.676494
+      ]
      },
      {
       "label": "الاسعار",
@@ -1185,7 +1332,11 @@
       "rows": 693,
       "groups": 206,
       "share": 0.104289,
-      "accuracy": 0.978355
+      "accuracy": 0.978355,
+      "interval": [
+       0.958278,
+       0.995659
+      ]
      },
      {
       "label": "الاسعار",
@@ -1193,7 +1344,8 @@
       "rows": 0,
       "groups": 0,
       "share": 0.0,
-      "accuracy": null
+      "accuracy": null,
+      "interval": null
      },
      {
       "label": "الاسعار",
@@ -1201,7 +1353,11 @@
       "rows": 24,
       "groups": 16,
       "share": 0.003612,
-      "accuracy": 0.75
+      "accuracy": 0.75,
+      "interval": [
+       0.5,
+       0.923077
+      ]
      }
     ]
    },
@@ -1380,7 +1536,11 @@
       "rows": 723,
       "groups": 244,
       "share": 0.108804,
-      "accuracy": 0.976487
+      "accuracy": 0.976487,
+      "interval": [
+       0.956125,
+       0.992407
+      ]
      },
      {
       "label": "المأكولات",
@@ -1388,7 +1548,11 @@
       "rows": 176,
       "groups": 91,
       "share": 0.026486,
-      "accuracy": 0.880682
+      "accuracy": 0.880682,
+      "interval": [
+       0.807219,
+       0.943006
+      ]
      },
      {
       "label": "المأكولات",
@@ -1396,7 +1560,11 @@
       "rows": 88,
       "groups": 50,
       "share": 0.013243,
-      "accuracy": 0.579545
+      "accuracy": 0.579545,
+      "interval": [
+       0.432631,
+       0.738636
+      ]
      },
      {
       "label": "المشروبات",
@@ -1404,7 +1572,11 @@
       "rows": 1530,
       "groups": 501,
       "share": 0.230248,
-      "accuracy": 0.986275
+      "accuracy": 0.986275,
+      "interval": [
+       0.975491,
+       0.994604
+      ]
      },
      {
       "label": "المشروبات",
@@ -1412,7 +1584,11 @@
       "rows": 311,
       "groups": 140,
       "share": 0.046802,
-      "accuracy": 0.881029
+      "accuracy": 0.881029,
+      "interval": [
+       0.820339,
+       0.933804
+      ]
      },
      {
       "label": "المشروبات",
@@ -1420,7 +1596,11 @@
       "rows": 204,
       "groups": 101,
       "share": 0.0307,
-      "accuracy": 0.671569
+      "accuracy": 0.671569,
+      "interval": [
+       0.573941,
+       0.767444
+      ]
      },
      {
       "label": "الخدمة",
@@ -1428,7 +1608,11 @@
       "rows": 1025,
       "groups": 350,
       "share": 0.154251,
-      "accuracy": 0.971707
+      "accuracy": 0.971707,
+      "interval": [
+       0.954964,
+       0.986603
+      ]
      },
      {
       "label": "الخدمة",
@@ -1436,7 +1620,11 @@
       "rows": 399,
       "groups": 187,
       "share": 0.060045,
-      "accuracy": 0.689223
+      "accuracy": 0.689223,
+      "interval": [
+       0.616396,
+       0.759879
+      ]
      },
      {
       "label": "الخدمة",
@@ -1444,7 +1632,11 @@
       "rows": 271,
       "groups": 136,
       "share": 0.040783,
-      "accuracy": 0.479705
+      "accuracy": 0.479705,
+      "interval": [
+       0.386123,
+       0.570344
+      ]
      },
      {
       "label": "الجلسات",
@@ -1452,7 +1644,11 @@
       "rows": 839,
       "groups": 277,
       "share": 0.12626,
-      "accuracy": 0.977354
+      "accuracy": 0.977354,
+      "interval": [
+       0.959998,
+       0.991805
+      ]
      },
      {
       "label": "الجلسات",
@@ -1460,7 +1656,11 @@
       "rows": 254,
       "groups": 113,
       "share": 0.038224,
-      "accuracy": 0.799213
+      "accuracy": 0.799213,
+      "interval": [
+       0.71712,
+       0.876547
+      ]
      },
      {
       "label": "الجلسات",
@@ -1468,7 +1668,11 @@
       "rows": 108,
       "groups": 59,
       "share": 0.016253,
-      "accuracy": 0.527778
+      "accuracy": 0.527778,
+      "interval": [
+       0.383149,
+       0.676494
+      ]
      },
      {
       "label": "الاسعار",
@@ -1476,7 +1680,11 @@
       "rows": 611,
       "groups": 179,
       "share": 0.091949,
-      "accuracy": 0.98527
+      "accuracy": 0.98527,
+      "interval": [
+       0.966539,
+       1.0
+      ]
      },
      {
       "label": "الاسعار",
@@ -1484,7 +1692,8 @@
       "rows": 0,
       "groups": 0,
       "share": 0.0,
-      "accuracy": null
+      "accuracy": null,
+      "interval": null
      },
      {
       "label": "الاسعار",
@@ -1492,7 +1701,11 @@
       "rows": 106,
       "groups": 48,
       "share": 0.015952,
-      "accuracy": 0.886792
+      "accuracy": 0.886792,
+      "interval": [
+       0.789462,
+       0.967759
+      ]
      }
     ]
    },
@@ -1525,7 +1738,11 @@
      "rows": 723,
      "groups": 244,
      "share": 0.108804,
-     "accuracy": 0.976487
+     "accuracy": 0.976487,
+     "interval": [
+      0.956125,
+      0.992407
+     ]
     },
     {
      "label": "المأكولات",
@@ -1533,7 +1750,11 @@
      "rows": 176,
      "groups": 91,
      "share": 0.026486,
-     "accuracy": 0.880682
+     "accuracy": 0.880682,
+     "interval": [
+      0.807219,
+      0.943006
+     ]
     },
     {
      "label": "المأكولات",
@@ -1541,7 +1762,11 @@
      "rows": 88,
      "groups": 50,
      "share": 0.013243,
-     "accuracy": 0.579545
+     "accuracy": 0.579545,
+     "interval": [
+      0.432631,
+      0.738636
+     ]
     },
     {
      "label": "المشروبات",
@@ -1549,7 +1774,11 @@
      "rows": 1530,
      "groups": 501,
      "share": 0.230248,
-     "accuracy": 0.986275
+     "accuracy": 0.986275,
+     "interval": [
+      0.975491,
+      0.994604
+     ]
     },
     {
      "label": "المشروبات",
@@ -1557,7 +1786,11 @@
      "rows": 311,
      "groups": 140,
      "share": 0.046802,
-     "accuracy": 0.881029
+     "accuracy": 0.881029,
+     "interval": [
+      0.820339,
+      0.933804
+     ]
     },
     {
      "label": "المشروبات",
@@ -1565,7 +1798,11 @@
      "rows": 204,
      "groups": 101,
      "share": 0.0307,
-     "accuracy": 0.671569
+     "accuracy": 0.671569,
+     "interval": [
+      0.573941,
+      0.767444
+     ]
     },
     {
      "label": "الخدمة",
@@ -1573,7 +1810,11 @@
      "rows": 1025,
      "groups": 350,
      "share": 0.154251,
-     "accuracy": 0.971707
+     "accuracy": 0.971707,
+     "interval": [
+      0.954964,
+      0.986603
+     ]
     },
     {
      "label": "الخدمة",
@@ -1581,7 +1822,11 @@
      "rows": 399,
      "groups": 187,
      "share": 0.060045,
-     "accuracy": 0.689223
+     "accuracy": 0.689223,
+     "interval": [
+      0.616396,
+      0.759879
+     ]
     },
     {
      "label": "الخدمة",
@@ -1589,7 +1834,11 @@
      "rows": 271,
      "groups": 136,
      "share": 0.040783,
-     "accuracy": 0.479705
+     "accuracy": 0.479705,
+     "interval": [
+      0.386123,
+      0.570344
+     ]
     },
     {
      "label": "الجلسات",
@@ -1597,7 +1846,11 @@
      "rows": 839,
      "groups": 277,
      "share": 0.12626,
-     "accuracy": 0.977354
+     "accuracy": 0.977354,
+     "interval": [
+      0.959998,
+      0.991805
+     ]
     },
     {
      "label": "الجلسات",
@@ -1605,7 +1858,11 @@
      "rows": 254,
      "groups": 113,
      "share": 0.038224,
-     "accuracy": 0.799213
+     "accuracy": 0.799213,
+     "interval": [
+      0.71712,
+      0.876547
+     ]
     },
     {
      "label": "الجلسات",
@@ -1613,7 +1870,11 @@
      "rows": 108,
      "groups": 59,
      "share": 0.016253,
-     "accuracy": 0.527778
+     "accuracy": 0.527778,
+     "interval": [
+      0.383149,
+      0.676494
+     ]
     },
     {
      "label": "الاسعار",
@@ -1621,7 +1882,11 @@
      "rows": 611,
      "groups": 179,
      "share": 0.091949,
-     "accuracy": 0.98527
+     "accuracy": 0.98527,
+     "interval": [
+      0.966539,
+      1.0
+     ]
     },
     {
      "label": "الاسعار",
@@ -1629,7 +1894,8 @@
      "rows": 0,
      "groups": 0,
      "share": 0.0,
-     "accuracy": null
+     "accuracy": null,
+     "interval": null
     },
     {
      "label": "الاسعار",
@@ -1637,7 +1903,11 @@
      "rows": 106,
      "groups": 48,
      "share": 0.015952,
-     "accuracy": 0.886792
+     "accuracy": 0.886792,
+     "interval": [
+      0.789462,
+      0.967759
+     ]
     }
    ],
    "v1_thresholds": {

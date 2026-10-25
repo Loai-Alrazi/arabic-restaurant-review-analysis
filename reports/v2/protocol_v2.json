@@ -201,6 +201,26 @@
    "محايد": 203
   }
  },
+ "versions": {
+  "scikit-learn": "1.8.0",
+  "numpy": "2.5.4",
+  "pandas": "2.3.3",
+  "joblib": "1.6.0",
+  "python": "3.12.12"
+ },
+ "sources": {
+  "config": "e206cb63a808929820326c245954e28b7d108a3267fb7413fdd626c8f59dfc47",
+  "cues": "ac5460bb887a6807941a15c95c55fead43c829fa5d71c9b119c92192eff422e0",
+  "experiments": "6320fe5d206161ef497c4b62a8670d93edf13605d60c6063c75843bfa32af234",
+  "features": "6bd50b442898756cc4f31a6188511971f383a873eee9527c23f3236d5d3d81fd",
+  "final": "263611f9512d3aca98c28e90f860ad98488064dffcde44aa63d468c6caaa0e68",
+  "predict": "8bf6b7afe4606bbc38ecdfc31172d3e2fba5fd445275faf5107ce8652756a85c",
+  "protocol": "de377daf4005ecbdaa9b0a270de6b535e083c29846c9fa379fb7119b67c36752",
+  "split": "9adcb0d0654a0a7f742965958546199bff492cda8cfb270a2b101c79b8905efa",
+  "text": "25e502b0feac44d3b6a30fbae86abf67fc86a4db2e73d52134fe23b624caaeca",
+  "v2": "7ffb73a2fa9338766b350ad8f3930efb28badc6e638ddb8b5654a1dadf1f9ad6"
+ },
+ "results_commit": "93a4361",
  "rules": {
   "min_gain": 0.01,
   "min_neutral_gain": 0.02,
@@ -241,5 +261,23 @@
   ],
   "drop_slack": 0.05
  },
- "fingerprint": "01e4792a5106c069ebf0009703ca1767b8ce2f02d7eb2f2d8f6e09d9111e44ba"
+ "fingerprint": "f5d6c94afda8c38401c8053768e21b6f670e84d5d599be0478939146142dce73",
+ "build": {
+  "inputs": [
+   "data/processed/dev.csv",
+   "data/splits/split_v1.csv",
+   "models/v2/aspect.joblib",
+   "models/v2/sentiment.joblib",
+   "reports/experiments.csv",
+   "reports/model_digests.json",
+   "reports/v2/results.json"
+  ],
+  "versions": {
+   "scikit-learn": "1.8.0",
+   "numpy": "2.5.4",
+   "pandas": "2.3.3",
+   "joblib": "1.6.0",
+   "python": "3.12.12"
+  }
+ }
 }
