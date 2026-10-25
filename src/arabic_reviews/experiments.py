@@ -34,9 +34,20 @@ MIN_WINS = 11
 
 
 def _spec(name: str, model: str, representation: str = "word11", normalisation: str = "none",
-          class_weight=None, params=None, notes: str = "") -> dict:
+          class_weight=None, params=None, notes: str = "", **options) -> dict:
+    """Experiment spec; ``options`` may set symbols, digits, negation, stopwords, textstats."""
     return dict(name=name, model=model, representation=representation, normalisation=normalisation,
-                class_weight=class_weight, params=params or {}, notes=notes)
+                class_weight=class_weight, params=params or {}, notes=notes, **options)
+
+
+def describe_preprocessing(spec: dict) -> str:
+    """Compact preprocessing label for the log ("none" when nothing is applied)."""
+    parts = [spec["normalisation"]] if spec["normalisation"] != "none" else []
+    for key in ("symbols", "digits"):
+        if spec.get(key, "keep") != "keep":
+            parts.append(f"{key}={spec[key]}")
+    parts += [flag for flag in ("negation", "stopwords") if spec.get(flag)]
+    return "|".join(parts) or "none"
 
 
 # Specs shared by both tasks; the experiment id is "<task>/<name>".
@@ -113,35 +124,35 @@ def _append(row: dict) -> None:
         EXPERIMENTS_FILE, mode="a", header=fresh, index=False, lineterminator="\n")
 
 
+def run_experiment(task: str, spec: dict, dev: pd.DataFrame) -> dict:
+    """Evaluate one spec on the 3 x 5 CV and append its row to the log."""
+    res = cv_scores(spec, dev, task)
+    features = spec["representation"] + ("+textstats" if spec.get("textstats") else "")
+    row = dict(
+        exp_id=exp_id(task, spec["name"]),
+        timestamp=datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        git_sha=_git_sha(), task=task, preprocessing=describe_preprocessing(spec),
+        features=features, model=spec["model"],
+        params=json.dumps({**spec["params"], "class_weight": spec["class_weight"]}, sort_keys=True),
+        cv_macro_f1_mean=round(float(np.mean(res["f1"])), 4),
+        cv_macro_f1_std=round(float(np.std(res["f1"], ddof=1)), 4),
+        fold_scores=json.dumps([round(float(v), 6) for v in res["f1"]]),
+        balanced_acc_mean=round(float(np.mean(res["bal"])), 4),
+        accuracy_mean=round(float(np.mean(res["acc"])), 4),
+        fit_seconds=round(res["seconds"], 2), notes=spec["notes"],
+    )
+    _append(row)
+    return row
+
+
 def run_pending(dev: pd.DataFrame | None = None, registry: list[dict] | None = None) -> pd.DataFrame:
     """Run every registered experiment not yet in the log (append-only; finished
     experiments are never re-run or edited). Returns the rows appended."""
     dev = split.load_dev() if dev is None else dev
     registry = REGISTRY if registry is None else registry
-    log = read_log()
-    done = set(log.exp_id)
-    rows = []
-    for task in TASKS:
-        for spec in registry:
-            eid = exp_id(task, spec["name"])
-            if eid in done:
-                continue
-            res = cv_scores(spec, dev, task)
-            row = dict(
-                exp_id=eid,
-                timestamp=datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
-                git_sha=_git_sha(), task=task, preprocessing=spec["normalisation"],
-                features=spec["representation"], model=spec["model"],
-                params=json.dumps({**spec["params"], "class_weight": spec["class_weight"]}, sort_keys=True),
-                cv_macro_f1_mean=round(float(np.mean(res["f1"])), 4),
-                cv_macro_f1_std=round(float(np.std(res["f1"], ddof=1)), 4),
-                fold_scores=json.dumps([round(float(v), 6) for v in res["f1"]]),
-                balanced_acc_mean=round(float(np.mean(res["bal"])), 4),
-                accuracy_mean=round(float(np.mean(res["acc"])), 4),
-                fit_seconds=round(res["seconds"], 2), notes=spec["notes"],
-            )
-            rows.append(row)
-            _append(row)
+    done = set(read_log().exp_id)
+    rows = [run_experiment(task, spec, dev)
+            for task in TASKS for spec in registry if exp_id(task, spec["name"]) not in done]
     return pd.DataFrame(rows, columns=COLUMNS)
 
 
@@ -174,4 +185,63 @@ def axis_markdown(log: pd.DataFrame, title: str, chain: list[str]) -> str:
                          f"{s['wins']}/{s['n']} | {'accepted' if s['accepted'] else 'rejected'} |")
         final = steps[-1]["final_winner"] if steps else chain[0]
         lines += ["", f"Winner for {task}: `{final}`", ""]
+    return "\n".join(lines)
+
+
+# Axes 2-6 in the pre-declared order (PROJECT_PLAN.md, M3). Every candidate is the current
+# winner with one change applied, so it is compared with the winner on the same 15 folds.
+AXES = [
+    ("a2", "Axis 2 - normalisation",
+     [("light", dict(normalisation="light")), ("full", dict(normalisation="full"))]),
+    ("a3", "Axis 3 - symbols and digits",
+     [("symbols_separate", dict(symbols="separate")), ("symbols_remove", dict(symbols="remove")),
+      ("digits_token", dict(digits="token"))]),
+    ("a4", "Axis 4 - negation and stopwords",
+     [("negation", dict(negation=True)), ("stopwords", dict(stopwords=True))]),
+    ("a5", "Axis 5 - text statistics", [("textstats", dict(textstats=True))]),
+    ("a6", "Axis 6 - class weighting", [("balanced", dict(class_weight="balanced"))]),
+]
+
+
+def axis1_winner(log: pd.DataFrame, task: str) -> str:
+    steps = decide_chain(log, task, AXIS1_CHAIN)
+    return steps[-1]["final_winner"]
+
+
+def resolve_axes(task: str, dev: pd.DataFrame | None = None) -> tuple[list[dict], dict]:
+    """Walk axes 2-6 for one task. With ``dev`` given, missing experiments are run and logged;
+    otherwise every experiment must already be in the log. Returns (decision rows, final spec)."""
+    by_name = {s["name"]: s for s in REGISTRY}
+    winner = dict(by_name[axis1_winner(read_log(), task)])
+    rows = []
+    for key, title, variants in AXES:
+        for variant, change in variants:
+            name = f"{key}_{variant}"
+            spec = dict(winner, name=name, notes=f"{title}: {variant}", **change)
+            if dev is not None and exp_id(task, name) not in set(read_log().exp_id):
+                run_experiment(task, spec, dev)
+            log = read_log()
+            res = compare(fold_scores(log, exp_id(task, winner["name"])), fold_scores(log, exp_id(task, name)))
+            rows.append(dict(axis=title, candidate=name, winner_before=winner["name"], **res))
+            if res["accepted"]:
+                winner = spec
+    return rows, winner
+
+
+def _spec_summary(spec: dict) -> dict:
+    keys = ("representation", "normalisation", "symbols", "digits", "negation", "stopwords",
+            "textstats", "class_weight")
+    return {k: spec.get(k) for k in keys if k in spec}
+
+
+def axes_markdown(task_results: dict[str, tuple[list[dict], dict]]) -> str:
+    lines = ["## Axes 2-6", "",
+             "Each candidate is the current winner plus one change, compared on the same 15 folds.", ""]
+    for task, (rows, final) in task_results.items():
+        lines += [f"### {task}", "", "| axis | candidate | vs current winner | mean gain | folds won | decision |",
+                  "|---|---|---|---|---|---|"]
+        for r in rows:
+            lines.append(f"| {r['axis']} | {r['candidate']} | {r['winner_before']} | {r['mean_delta']:+.4f} | "
+                         f"{r['wins']}/{r['n']} | {'accepted' if r['accepted'] else 'rejected'} |")
+        lines += ["", f"Final feature set for {task}: `{json.dumps(_spec_summary(final), sort_keys=True)}`", ""]
     return "\n".join(lines)

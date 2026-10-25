@@ -49,16 +49,20 @@ def cmd_eda() -> None:
 
 
 def cmd_experiments() -> None:
-    from .experiments import ABLATIONS_FILE, AXIS1_CHAIN, axis_markdown, read_log, run_pending
+    from .experiments import (ABLATIONS_FILE, AXIS1_CHAIN, TASKS, axes_markdown, axis_markdown,
+                              read_log, resolve_axes, run_pending)
+    from .split import load_dev
 
-    new = run_pending()
+    dev = load_dev()
+    new = run_pending(dev)
+    results = {task: resolve_axes(task, dev) for task in TASKS}
     ABLATIONS_FILE.write_text(
         "# Feature-engineering ablations (development CV only)\n\n"
-        + axis_markdown(read_log(), "Axis 1 - representation", AXIS1_CHAIN) + "\n",
+        + axis_markdown(read_log(), "Axis 1 - representation", AXIS1_CHAIN) + "\n"
+        + axes_markdown(results) + "\n",
         encoding="utf-8", newline="\n",
     )
-    print(new[["exp_id", "cv_macro_f1_mean", "cv_macro_f1_std", "fit_seconds"]].to_string(index=False))
-    print(f"{len(new)} experiment(s) appended to reports/experiments.csv")
+    print(f"{len(new)} baseline/axis-1 experiment(s) appended; {len(read_log())} rows in reports/experiments.csv")
 
 
 COMMANDS = {

@@ -9,6 +9,7 @@ particles (``NEGATIONS``) always survive normalisation.
 
 from __future__ import annotations
 
+import math
 import re
 import unicodedata
 from typing import Literal
@@ -93,3 +94,48 @@ def dedup_key(text: str) -> str:
     """Aggressive key for duplicate detection: spelling variants, symbols, case and
     spacing are ignored, but every word (including negations) is kept."""
     return normalize(text, **FULL, symbols="remove", digits="ascii").lower()
+
+
+# Frequent Arabic function words. Negation particles are never listed (see NEGATIONS), so
+# removing stopwords cannot delete a negation.
+STOPWORDS = frozenset(
+    {"في", "من", "على", "الى", "إلى", "عن", "مع", "هذا", "هذه", "هذي", "ذلك", "تلك", "هو", "هي",
+     "هم", "انا", "أنا", "انت", "أنت", "نحن", "كان", "كانت", "يكون", "التي", "الذي", "الي", "اللي",
+     "او", "أو", "ثم", "قد", "كل", "بعض", "هنا", "هناك", "ان", "أن", "إن", "اذا", "إذا", "كما",
+     "عند", "حتى", "لكن", "و", "ب", "ل", "ك"}
+) - NEGATIONS
+
+_WORD_RE = re.compile(r"\w+")
+NEG_PREFIX = "NEG_"
+
+
+def mark_negation(text: str) -> str:
+    """Prefix the word that follows a negation particle with ``NEG_`` (the particle stays)."""
+    out, pending = [], False
+    for token in text.split(" "):
+        if pending and token and _WORD_RE.fullmatch(token):
+            token, pending = NEG_PREFIX + token, False
+        elif token in NEGATIONS:
+            pending = True
+        elif token:
+            pending = False
+        out.append(token)
+    return " ".join(out)
+
+
+def remove_stopwords(text: str) -> str:
+    """Drop function words in ``STOPWORDS``; every other word, including negations, stays."""
+    kept = _WORD_RE.sub(lambda m: "" if m.group() in STOPWORDS else m.group(), text)
+    return WHITESPACE_RE.sub(" ", kept).strip()
+
+
+def text_stats(text: str) -> list[float]:
+    """Simple surface statistics of the raw review: length, words, '!', '?'/'؟', symbols
+    (emoji and pictographs), negation particles."""
+    words = _WORD_RE.findall(text)
+    return [
+        math.log1p(len(text)), math.log1p(len(words)),
+        float(text.count("!")), float(text.count("?") + text.count("؟")),
+        float(sum(1 for ch in text if unicodedata.category(ch) == "So")),
+        float(sum(1 for w in words if w in NEGATIONS)),
+    ]

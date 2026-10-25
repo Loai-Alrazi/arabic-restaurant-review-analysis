@@ -133,3 +133,58 @@ def test_axis_markdown_lists_decisions():
                         for t in experiments.TASKS for n, v in (("a", 0.5), ("b", 0.6))])
     md = experiments.axis_markdown(log, "Axis X", ["a", "b"])
     assert "| b | a | +0.1000 | 15/15 | accepted |" in md and "Winner for aspect: `b`" in md
+
+
+def test_negation_marking_and_stopwords_keep_negations():
+    from arabic_reviews import text
+
+    assert text.mark_negation("الخدمة ما كانت جيدة") == "الخدمة ما NEG_كانت جيدة"
+    assert text.mark_negation("لا !") == "لا !"  # a symbol is not marked
+    assert text.mark_negation("") == ""
+    assert text.remove_stopwords("القهوة في المكان ما كانت جيدة") == "القهوة المكان ما جيدة"
+    assert not text.STOPWORDS & text.NEGATIONS
+
+
+def test_text_stats_are_counts_of_the_raw_text():
+    from arabic_reviews import text
+
+    stats = text.text_stats("ما أحلاه!!! ؟ 😀😀")
+    assert stats[2] == 3.0 and stats[3] == 1.0 and stats[4] == 2.0 and stats[5] == 1.0
+
+
+@pytest.mark.parametrize("change", [
+    dict(normalisation="full"), dict(symbols="separate"), dict(symbols="remove"),
+    dict(digits="token"), dict(negation=True), dict(stopwords=True), dict(textstats=True),
+    dict(class_weight="balanced"),
+])
+def test_every_axis_option_builds_a_working_pipeline(change):
+    spec = experiments._spec("x", "logreg", "word11+char25", **{k: v for k, v in change.items()
+                                                              if k != "class_weight"},
+                             class_weight=change.get("class_weight"))
+    pipe = features.build_pipeline(spec)
+    X = ["الخدمة ممتازة 😀 !", "ما عجبني المكان 5", "القهوة لذيذة جدا", "الاسعار غالية ؟"]
+    pipe.fit(X, ["ايجابي", "سلبي", "ايجابي", "سلبي"])
+    assert list(pipe.predict(["ما عجبني"])) in (["ايجابي"], ["سلبي"])
+
+
+def test_symbol_tokens_reach_the_word_vocabulary_only_when_separated():
+    X = ["جميل😀", "سيء!"]
+    plain = features.build_pipeline(experiments._spec("p", "logreg", "word11"))
+    sep = features.build_pipeline(experiments._spec("s", "logreg", "word11", symbols="separate"))
+    for pipe in (plain, sep):
+        pipe.fit(X, ["a", "b"])
+    assert "😀" not in plain.named_steps["features"].vocabulary_
+    assert "😀" in sep.named_steps["features"].vocabulary_
+
+
+def test_resolve_axes_logs_each_candidate_once_and_is_reproducible(tmp_path, monkeypatch):
+    monkeypatch.setattr(experiments, "EXPERIMENTS_FILE", tmp_path / "experiments.csv")
+    dev = toy_dev(12)
+    experiments.run_pending(dev, experiments.REGISTRY)
+    n_candidates = sum(len(v) for _, _, v in experiments.AXES)
+    rows, final = experiments.resolve_axes("sentiment", dev)
+    assert len(rows) == n_candidates and len(experiments.read_log()) == 2 * 6 + n_candidates
+    again, final_again = experiments.resolve_axes("sentiment")  # read-only from the log
+    assert [r["accepted"] for r in rows] == [r["accepted"] for r in again]
+    assert final["name"] == final_again["name"]
+    assert "Axes 2-6" in experiments.axes_markdown({"sentiment": (rows, final)})
