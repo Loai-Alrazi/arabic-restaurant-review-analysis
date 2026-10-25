@@ -37,8 +37,6 @@ def level_text(task: str, level: str) -> str:
     return f"في الاختبار المحجوز كان {row['accuracy']:.0%} من تنبؤات هذا المستوى صحيحًا ({row['n']} مراجعة)."
 
 
-card = model_card()
-
 st.set_page_config(page_title="تحليل مراجعات المقاهي", page_icon="☕", layout="centered")
 st.markdown(
     "<style>html, body, [data-testid='stAppViewContainer'] {direction: rtl; text-align: right;}"
