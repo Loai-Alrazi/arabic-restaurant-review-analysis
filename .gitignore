@@ -8,6 +8,7 @@ data/processed/
 
 # --- Reproducible model artifacts ---
 models/*.joblib
+models/v2/*.joblib
 models/*.pkl
 
 # --- Local working files ---
