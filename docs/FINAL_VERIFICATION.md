@@ -1,0 +1,49 @@
+# التحقق النهائي — شروط التسليم وأدلتها
+
+تاريخ التحقق: 2026-10-25. كل بند أدناه مربوط بملف أو أمر أو رابط يمكن فحصه؛ الأرقام منقولة من المخرجات الفعلية.
+
+## 1. إعادة الإنتاج النظيفة
+
+استنساخ جديد من GitHub (commit `0aa4b01`، آخر commit على `main` قبل هذا الفرع؛ هذا الفرع يضيف وثائق فقط ولا يمس الكود أو التقارير المولدة) في مجلد فارغ، وبيئة Python جديدة من `requirements.txt`، ثم تشغيل كل الخطوات بالترتيب على Windows 10 (4 أنوية CPU، بلا GPU):
+
+| الخطوة | النتيجة |
+|---|---|
+| البيئة | Python 3.12.12، scikit-learn 1.8.0، numpy 2.5.4، pandas 2.3.3، joblib 1.6.0 (مطابقة لبطاقة النموذج) |
+| `ingest` | نُزّل الملف من Zenodo؛ SHA-256 `f171ef05…f8f6d901` مطابق |
+| `validate`، `split`، `eda` | لا فرق إطلاقًا عن الملفات المنشورة (`git status` نظيف، بما فيها الرسوم)؛ بصمة ملف الاختبار المحلي `142bac8e…` تطابق المسجلة في سجل الوصول |
+| `experiments`، `models` على السجل المنشور | لا تجربة جديدة (السجل إلحاقي)، والتقارير المعاد توليدها مطابقة حرفيًا |
+| `protocol` | البصمة نفسها `ec20dc6b…`؛ الفرق الوحيد في `protocol.json` هو حقل `built_from_commit` (commit الاستنساخ بدل `c246479`) |
+| `final --check` | البصمة تطابق البروتوكول المجمد؛ بصمات احتمالات التطوير للنماذج المبنية **مطابقة** لـ [`reports/model_digests.json`](../reports/model_digests.json)، أي أنها النماذج نفسها التي قيّمها الاختبار النهائي — دون قراءة الاختبار |
+| `pytest -q` | 228 ناجحًا، 0 متخطى |
+| إعادة بناء سجل التجارب من سجل فارغ (`experiments` ثم `models`) | 48 تجربة أعيد تشغيلها من الصفر؛ درجات الطيات الـ 15 لكل منها **مطابقة** للمنشورة (أكبر فرق 0.0)، و`ablations.md` و`models.md` و`error_analysis.md` المعاد توليدها مطابقة حرفيًا. لم تُعد بهذه الطريقة 13 سطرًا: 11 سطر `rerun_*` (إعادة تشغيل من شجرة نظيفة لإعدادات أعيد تشغيلها هنا أصلًا، وفرقها عن الأصل 0.0 في `protocol.json`)، وسطران قديمان للجانب (`m4_logreg_C3+min_df2`/`+sublinear`) سجلا قبل أن تعيد قاعدة التعقيد الاختيار إلى C = 1، فلم يعودا في مسار القرار |
+
+أرقام الاختبار النهائي نفسها لم يُعد حسابها لأن ذلك قراءة ثانية للاختبار؛ تطابق بصمات النماذج يثبت أن الاستنساخ النظيف يبني النماذج نفسها التي أنتجت [`reports/final_test.md`](../reports/final_test.md). المدة الكلية ≈ 50 دقيقة على CPU، معظمها لإعادة بناء السجل و`final --check`.
+
+## 2. شروط التسليم
+
+- [x] **تحليل المشكلة والوسوم ثابت ومطابق للبيانات الفعلية.** [`docs/PROBLEM_FRAMING.md`](PROBLEM_FRAMING.md) يصف المستخدم ولحظة التنبؤ والمدخل والمخرجات، ويثبت بأمثلة حقيقية أن كل مراجعة تحمل جانبًا رئيسيًا واحدًا ومشاعر مرتبطة به؛ لذا الادعاء تصنيفان أحاديا الوسم، لا ABSA كامل. المقياس الأساسي Macro-F1 وخطوط الأساس معلنة في `PROJECT_PLAN.md` §1.1 قبل أي تجربة. نسبة المراجعات متعددة الجوانب (≈ 10%) مقيسة في [`reports/eda.md`](../reports/eda.md) ومذكورة في الحدود.
+- [x] **مصدر البيانات وحقوق استخدامه موثقان، والتجميع والتحقق والجودة والـ lineage قابلة للإعادة.** Zenodo 17781916 الإصدار 1، CC-BY-4.0، مع الاقتباس في `README.md`؛ [`data/source_manifest.json`](../data/source_manifest.json) (الحجم وMD5 وSHA-256)؛ [`reports/data_quality.md`](../reports/data_quality.md) و[`reports/lineage.json`](../reports/lineage.json) (3000 = 2769 + 217 + 14). CI ينزل الملف من Zenodo ويعيد توليد التقارير ويقارنها بايتًا ببايت؛ والاستنساخ النظيف أعلاه طابقها. البيانات الخام والمعالجة غير منشورة (`.gitignore`، والفحص في §3).
+- [x] **لا تسريب معروف عبر التكرارات أو تطبيع النص أو fit قبل التقسيم، والاختبار محفوظ.** تجميع شبه المكررات قبل التقسيم ([`reports/split.md`](../reports/split.md))، `StratifiedGroupKFold`، [`data/splits/split_v1.csv`](../data/splits/split_v1.csv) منشور ويُعاد توليده في CI بايتًا ببايت؛ `tests/test_split.py` يتحقق من عدم عبور أي مجموعة أو نص مطبّع أو زوج شبيه بين التطوير والاختبار وبين الطيات، ومن أن كود التجارب يقرأ التطوير فقط؛ كل `fit` داخل `sklearn.Pipeline` على طيات التدريب؛ إزالة الوسوم الملتصقة بالنص قبل أي نمذجة. [`reports/test_access_log.json`](../reports/test_access_log.json): قراءة واحدة (run 1، 2026-10-25T10:29:29Z، commit `b577bb0`)، بعد تجميد البروتوكول.
+- [x] **Pipeline تدريب/تحويل/استدلال واحدة صحيحة، وتجارب Baseline وFeature Engineering موثقة بمقاييس عادلة.** منطق النص في `src/arabic_reviews/text.py` و`features.py` داخل Pipeline واحدة تُحفظ كاملة بـ joblib وتستدعيها `predict.py` والصفحة دون تحويلات مكررة. [`reports/experiments.csv`](../reports/experiments.csv) (61 سطرًا: المعاملات، درجات الطيات الـ 15، الزمن، الـ commit) و[`reports/ablations.md`](../reports/ablations.md): Dummy ومرجع ثم ستة محاور إزالة/إضافة بقاعدة قبول معلنة، على الـ 3×5 CV نفسها. الاستنساخ النظيف أعاد بناء السجل من الصفر وطابق درجات الطيات.
+- [x] **اختيار النماذج مبرر بنتائج وتكلفة، لا بعدد مفروض، مع تقييم مستقل واضح لكل هدف.** [`reports/models.md`](../reports/models.md) (Linear SVM وComplement NB مرفوضان، ضبط C محدود بقاعدة الخطأ المعياري الواحد وقاعدة القبول)، [`reports/final_protocol.md`](../reports/final_protocol.md) (الإعدادات المجمدة لكل مهمة، المدى المتوقع، العتبات، البصمة `ec20dc6b…`)، و[`reports/final_test.md`](../reports/final_test.md) بتقييم منفصل لكل مهمة ثم للنظام المشترك. بوابة التمثيل الأعمق المعلنة مسبقًا بقيت مغلقة ([`reports/error_analysis.md`](../reports/error_analysis.md)).
+- [x] **اختبار نهائي غير مستغل في الضبط، وتحليل أخطاء وحدود، ولا نتائج وهمية.** الإجراء `final` يتحقق من بصمة البروتوكول المجمد قبل فتح ملف الاختبار ويرفض قراءة ثانية دون سبب مكتوب (`tests/test_final.py`، ببيانات لعبة). النتائج كما ظهرت: المشاعر Macro-F1 0.6564 [0.604, 0.704]، الجانب 0.9009 [0.873, 0.925]، كلاهما داخل المدى المتوقع؛ مصفوفات الالتباس والفئات الضعيفة وتحليل أخطاء يدوي لعينة من أخطاء التطوير في [`reports/error_analysis.md`](../reports/error_analysis.md) و[`reports/error_categories.csv`](../reports/error_categories.csv)؛ الحدود في `README.md`.
+- [x] **واجهة عربية بسيطة تعمل فعليًا باستخدام Pipeline محفوظة.** `app/streamlit_app.py` (صفحة RTL واحدة) و`python -m arabic_reviews.predict`. اختبارات الصفحة والاستدلال: `tests/test_predict.py` (النماذج الحقيقية، محليًا) و`tests/test_predict_fixture.py` (Pipeline صغيرة، تعمل في CI). تشغيل فعلي في 2026-10-25: `streamlit run app/streamlit_app.py --server.headless true` أجاب فحص الصحة `/_stcore/health` بـ `ok`، وعرضت الصفحة (عبر `streamlit.testing`) الجانب والمشاعر ومستوى اليقين والبديل الأقرب دون أي استثناء. زمن التنبؤ المقيس: 19 ms للمراجعة (متوسط 200 استدعاء، والجهاز مشغول بمهمة إعادة الإنتاج) بعد تحميل أول يستغرق ≈ 5 ثوانٍ.
+- [x] **اختبارات حقيقية، إعادة تشغيل نظيفة، README، وإرشادات مناقشة فردية.** `pytest`: 228 اختبارًا ناجحًا ولا تخطٍّ في الاستنساخ النظيف (بالنماذج المبنية بـ `final --check`)؛ CI على `main` (`0aa4b01`، [run 40189937344](https://github.com/Loai-Alrazi/arabic-restaurant-review-analysis/actions/runs/40189937344)): 218 ناجحًا و10 متخطاة — العشرة هي الاختبارات التي تحتاج ملفات النماذج الحقيقية غير المنشورة، ومساراتها مغطاة في CI بـ Pipeline صغيرة مبنية داخل الاختبار. [`README.md`](../README.md) عربي؛ [`PRESENTATION_NOTES.md`](../PRESENTATION_NOTES.md)؛ إعادة الإنتاج النظيفة في §1.
+- [x] **مشروع GitHub عام مستقل مع تاريخ عمل مفهوم، وIssues/PRs ذات معنى ومراجعات منضبطة.** https://github.com/Loai-Alrazi/arabic-restaurant-review-analysis (عام، MIT). Issue لكل مرحلة (#1–#7) وPR لكل مرحلة مدمجة بـ merge commit بعد نجاح CI وتعليق «Pre-merge verification»: [#8](https://github.com/Loai-Alrazi/arabic-restaurant-review-analysis/pull/8) M1، [#9](https://github.com/Loai-Alrazi/arabic-restaurant-review-analysis/pull/9) M2، [#10](https://github.com/Loai-Alrazi/arabic-restaurant-review-analysis/pull/10) و[#11](https://github.com/Loai-Alrazi/arabic-restaurant-review-analysis/pull/11) M3، [#12](https://github.com/Loai-Alrazi/arabic-restaurant-review-analysis/pull/12) M4، [#13](https://github.com/Loai-Alrazi/arabic-restaurant-review-analysis/pull/13) M5، [#14](https://github.com/Loai-Alrazi/arabic-restaurant-review-analysis/pull/14) و[#15](https://github.com/Loai-Alrazi/arabic-restaurant-review-analysis/pull/15) M6، وPR هذه المرحلة (M7).
+- [x] **لم يحدث تعديل على أي مشروع/Repo آخر، ولم يُنشر محتوى محظور أو ترويج لأدوات تنفيذ في الوثائق العامة.** الفحص في §3.
+
+## 3. فحص المحتوى العام
+
+أجري على الملفات المتتبعة وملفات هذا الفرع، وعلى رسائل كل الـ commits في كل الفروع، وعلى عناوين وأجسام كل Issues وPRs وتعليقاتها ومراجعاتها على GitHub:
+
+| الفحص | النتيجة |
+|---|---|
+| أسماء أدوات مساعدة أو عبارات توليد تلقائي أو co-author trailers | لا شيء |
+| ملفات بيانات خام/معالجة، ملفات نماذج (`.joblib`/`.pkl`)، ملفات `.xlsx` أو `.pdf` في أي commit | لا شيء |
+| ملفات أكبر من 1 MB في التاريخ | لا شيء |
+| أنماط أسرار (رموز GitHub، مفاتيح خاصة، كلمات مرور) في التاريخ | لا شيء |
+| مؤلفو الـ commits | صاحب المشروع وحده (عنوانان بريديان له) |
+| كتّاب التعليقات على Issues/PRs | صاحب المشروع وحده |
+| المستودع القديم `Loai-Alrazi/Python` | آخر commit فيه بتاريخ 2026-01-15، قبل إنشاء هذا المستودع (2026-10-25)؛ لا PR ولا Issue جديد |
+
+التقارير المنشورة لا تحوي نصوص المراجعات إلا أمثلة قصيرة للتوضيح من بيانات CC-BY-4.0 مع ذكر المصدر؛ ملف التقسيم وملف أزواج شبه المكررات يحويان المعرفات فقط.
