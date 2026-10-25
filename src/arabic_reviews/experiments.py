@@ -377,13 +377,14 @@ def m4_markdown(results: dict[str, dict]) -> str:
 
 # ---- M4: out-of-fold predictions and error analysis ----------------------------------------
 
-def oof_predictions(spec: dict, dev: pd.DataFrame, task: str, repeat: int = 0) -> pd.DataFrame:
+def oof_predictions(spec: dict, dev: pd.DataFrame, task: str, repeat: int = 0,
+                    column: str | None = None) -> pd.DataFrame:
     """Predict every development row once, from a model fitted on the other four folds of one
-    CV repeat. Returns rid, true label, predicted label (and the top class probability when the
-    model has one)."""
+    CV repeat (``column`` overrides the repeat with any fold column of ``dev``). Returns rid,
+    fold, true label, predicted label (and the top class probability when the model has one)."""
     y = dev[TASKS[task]].to_numpy()
     X = dev["text"].to_numpy()
-    folds = dev[split.CV_COLUMNS[repeat]].to_numpy()
+    folds = dev[column or split.CV_COLUMNS[repeat]].to_numpy()
     pred = np.empty(len(dev), dtype=object)
     score = np.full(len(dev), np.nan)
     for k in sorted(set(folds)):
@@ -392,7 +393,7 @@ def oof_predictions(spec: dict, dev: pd.DataFrame, task: str, repeat: int = 0) -
         pred[valid] = model.predict(X[valid])
         if hasattr(model, "predict_proba"):
             score[valid] = model.predict_proba(X[valid]).max(axis=1)
-    return pd.DataFrame(dict(rid=dev["rid"].to_numpy(), y=y, pred=pred, score=score))
+    return pd.DataFrame(dict(rid=dev["rid"].to_numpy(), fold=folds, y=y, pred=pred, score=score))
 
 
 def per_class_table(oof: pd.DataFrame, labels: list[str]) -> pd.DataFrame:
@@ -417,7 +418,7 @@ def error_markdown(task: str, spec: dict, oof: pd.DataFrame) -> str:
     for r in table.itertuples():
         lines.append(f"| {r.label} | {r.precision:.3f} | {r.recall:.3f} | {r.f1:.3f} | {r.support} |")
     lines += ["", "Confusion matrix (rows = true, columns = predicted):", "",
-              "| true \ pred | " + " | ".join(labels) + " |", "|---" * (len(labels) + 1) + "|"]
+              "| true \\ pred | " + " | ".join(labels) + " |", "|---" * (len(labels) + 1) + "|"]
     cm = confusion(oof, labels)
     for label in labels:
         lines.append(f"| {label} | " + " | ".join(str(int(v)) for v in cm.loc[label]) + " |")

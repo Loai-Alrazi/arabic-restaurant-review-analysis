@@ -87,9 +87,17 @@ def cmd_models() -> None:
     print(f"{len(read_log()) - before} experiment(s) appended; wrote {MODELS_FILE.name} and {ERRORS_FILE.name}")
 
 
+def cmd_protocol() -> None:
+    from .protocol import PROTOCOL_JSON, PROTOCOL_MD, build_protocol, write_protocol
+
+    protocol = build_protocol()
+    write_protocol(protocol)
+    print(f"fingerprint {protocol['fingerprint']}; wrote {PROTOCOL_MD.name} and {PROTOCOL_JSON.name}")
+
+
 COMMANDS = {
     "ingest": cmd_ingest, "validate": cmd_validate, "split": cmd_split, "eda": cmd_eda,
-    "experiments": cmd_experiments, "models": cmd_models,
+    "experiments": cmd_experiments, "models": cmd_models, "protocol": cmd_protocol,
 }
 
 
