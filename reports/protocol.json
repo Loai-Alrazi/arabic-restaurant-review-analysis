@@ -1,10 +1,15 @@
 {
  "bootstrap": {
+  "decision": "final beats a dummy when the lower bound of the paired difference is > 0; versus the reference the result is 'above' (lower bound > 0), 'not distinguishable' (interval contains 0) or 'below' (upper bound < 0); success requires beating both dummies and not 'below' the reference",
+  "interval": "percentile",
   "level": 0.95,
+  "metric": "Macro-F1 and per-class F1 with the fixed label list and zero_division=0, as in the CV",
+  "paired": "final minus reference and final minus each dummy, on the same resamples: interval of the difference and share of resamples with a difference <= 0",
   "resamples": 2000,
   "seed": 0,
-  "unit": "group_id"
+  "unit": "group_id: draw as many near-duplicate groups as the test partition has, with replacement"
  },
+ "built_from_commit": "c246479",
  "clean_rerun": [
   {
    "max_fold_diff": 0.0,
@@ -89,86 +94,142 @@
   },
   {
    "max_fold_diff": 0.0,
-   "name": "m4_logreg_C3",
-   "original_mean": 0.9101,
+   "name": "m4_logreg_C1",
+   "original_mean": 0.9069,
    "original_sha": "db1d5db",
-   "rerun_mean": 0.9101,
-   "rerun_sha": "622b560",
+   "rerun_mean": 0.9069,
+   "rerun_sha": "c546512",
    "task": "aspect"
   }
  ],
  "dev_rows": 2215,
  "dev_sha256": "f0d6dc75ebd542d24cb04993bd4a492c13bd14433d91b05b58828acbd795c708",
- "fingerprint": "250d1d7cbaa75a17d8d162c8028b44bdd438323ae4af9e17716c4ebd49c12131",
+ "fingerprint": "ec20dc6ba81703194ac2b536f51698cb75d38427d44fa04f6d2f6401a7977b41",
+ "fold_rows": 443.0,
  "fresh_seeds": [
   100,
   101,
   102
  ],
  "joint_expected_range": {
-  "high": 0.745713,
-  "low": 0.671308,
-  "mean": 0.70851,
+  "high": 0.745847,
+  "low": 0.664854,
+  "mean": 0.70535,
   "n": 15,
-  "sd": 0.018601
+  "sd": 0.020248
+ },
+ "labels": {
+  "aspect": [
+   "المأكولات",
+   "المشروبات",
+   "الخدمة",
+   "الجلسات",
+   "الاسعار"
+  ],
+  "sentiment": [
+   "ايجابي",
+   "سلبي",
+   "محايد"
+  ]
+ },
+ "level_rule": {
+  "bin_width": 0.05,
+  "edge_eps": 0.0,
+  "min_bin": 30,
+  "targets": {
+   "high": 0.9,
+   "medium": 0.7
+  }
  },
  "split_sha256": "6a8a686fc143992313443060c5106ed80dd78a09013e85665bbeea39930a70f0",
  "tasks": {
   "aspect": {
+   "baselines": [
+    {
+     "class_weight": null,
+     "model": "dummy_most_frequent",
+     "name": "dummy_most_frequent",
+     "normalisation": "none",
+     "params": {},
+     "representation": "word11"
+    },
+    {
+     "class_weight": null,
+     "model": "dummy_stratified",
+     "name": "dummy_stratified",
+     "normalisation": "none",
+     "params": {},
+     "representation": "word11"
+    }
+   ],
    "certainty": {
     "fresh_levels": [
      {
-      "accuracy": 0.98302,
+      "accuracy": 0.980583,
       "level": "high",
-      "n": 4947,
-      "share": 0.74447
+      "n": 4738,
+      "share": 0.713017
      },
      {
-      "accuracy": 0.773451,
+      "accuracy": 0.812292,
       "level": "medium",
-      "n": 1130,
-      "share": 0.170053
+      "n": 1204,
+      "share": 0.181189
      },
      {
-      "accuracy": 0.514085,
+      "accuracy": 0.547653,
       "level": "low",
-      "n": 568,
-      "share": 0.085478
+      "n": 703,
+      "share": 0.105794
+     }
+    ],
+    "per_repeat_thresholds": [
+     {
+      "high": 0.45,
+      "medium": 0.35
+     },
+     {
+      "high": 0.5,
+      "medium": 0.4
+     },
+     {
+      "high": 0.5,
+      "medium": 0.35
      }
     ],
     "score": "highest class probability of the logistic-regression pipeline",
     "selection_levels": [
      {
-      "accuracy": 0.980317,
+      "accuracy": 0.98072,
       "level": "high",
-      "n": 4928,
-      "share": 0.74161
+      "n": 4720,
+      "share": 0.710309
      },
      {
-      "accuracy": 0.793679,
+      "accuracy": 0.816054,
       "level": "medium",
-      "n": 1139,
-      "share": 0.171407
+      "n": 1196,
+      "share": 0.179985
      },
      {
-      "accuracy": 0.49827,
+      "accuracy": 0.554184,
       "level": "low",
-      "n": 578,
-      "share": 0.086983
+      "n": 729,
+      "share": 0.109707
      }
     ],
     "thresholds": {
-     "high": 0.6,
-     "medium": 0.4
+     "high": 0.5,
+     "medium": 0.35
     }
    },
    "expected_range": {
     "final": {
-     "high": 0.939326,
-     "low": 0.881887,
-     "mean": 0.910607,
+     "high": 0.93555,
+     "low": 0.879446,
+     "mean": 0.907498,
      "n": 15,
-     "sd": 0.01436
+     "sd": 0.014026
     },
     "reference": {
      "high": 0.830908,
@@ -181,12 +242,124 @@
    "final": {
     "class_weight": "balanced",
     "model": "logreg",
-    "name": "m4_logreg_C3",
+    "name": "m4_logreg_C1",
     "normalisation": "none",
     "params": {
-     "C": 3
+     "C": 1
     },
     "representation": "char25"
+   },
+   "pipelines": {
+    "dummy_most_frequent": {
+     "clf__constant": null,
+     "clf__random_state": null,
+     "clf__strategy": "most_frequent",
+     "memory": null,
+     "transform_input": null,
+     "verbose": false
+    },
+    "dummy_stratified": {
+     "clf__constant": null,
+     "clf__random_state": 0,
+     "clf__strategy": "stratified",
+     "memory": null,
+     "transform_input": null,
+     "verbose": false
+    },
+    "final": {
+     "clf__C": 1,
+     "clf__class_weight": "balanced",
+     "clf__dual": false,
+     "clf__fit_intercept": true,
+     "clf__intercept_scaling": 1,
+     "clf__l1_ratio": 0.0,
+     "clf__max_iter": 2000,
+     "clf__n_jobs": null,
+     "clf__penalty": "deprecated",
+     "clf__random_state": 0,
+     "clf__solver": "lbfgs",
+     "clf__tol": 0.0001,
+     "clf__verbose": 0,
+     "clf__warm_start": false,
+     "features__analyzer": "char_wb",
+     "features__binary": false,
+     "features__decode_error": "strict",
+     "features__encoding": "utf-8",
+     "features__input": "content",
+     "features__lowercase": true,
+     "features__max_df": 1.0,
+     "features__max_features": null,
+     "features__min_df": 1,
+     "features__ngram_range": [
+      2,
+      5
+     ],
+     "features__norm": "l2",
+     "features__preprocessor": null,
+     "features__smooth_idf": true,
+     "features__stop_words": null,
+     "features__strip_accents": null,
+     "features__sublinear_tf": false,
+     "features__token_pattern": "(?u)\\b\\w\\w+\\b",
+     "features__tokenizer": null,
+     "features__use_idf": true,
+     "features__vocabulary": null,
+     "memory": null,
+     "normalize__digits": "keep",
+     "normalize__negation": false,
+     "normalize__preset": "none",
+     "normalize__stopwords": false,
+     "normalize__symbols": "keep",
+     "transform_input": null,
+     "verbose": false
+    },
+    "reference": {
+     "clf__C": 1.0,
+     "clf__class_weight": null,
+     "clf__dual": false,
+     "clf__fit_intercept": true,
+     "clf__intercept_scaling": 1,
+     "clf__l1_ratio": 0.0,
+     "clf__max_iter": 2000,
+     "clf__n_jobs": null,
+     "clf__penalty": "deprecated",
+     "clf__random_state": 0,
+     "clf__solver": "lbfgs",
+     "clf__tol": 0.0001,
+     "clf__verbose": 0,
+     "clf__warm_start": false,
+     "features__analyzer": "word",
+     "features__binary": false,
+     "features__decode_error": "strict",
+     "features__encoding": "utf-8",
+     "features__input": "content",
+     "features__lowercase": true,
+     "features__max_df": 1.0,
+     "features__max_features": null,
+     "features__min_df": 1,
+     "features__ngram_range": [
+      1,
+      1
+     ],
+     "features__norm": "l2",
+     "features__preprocessor": null,
+     "features__smooth_idf": true,
+     "features__stop_words": null,
+     "features__strip_accents": null,
+     "features__sublinear_tf": false,
+     "features__token_pattern": "(?u)\\b\\w\\w+\\b",
+     "features__tokenizer": null,
+     "features__use_idf": true,
+     "features__vocabulary": null,
+     "memory": null,
+     "normalize__digits": "keep",
+     "normalize__negation": false,
+     "normalize__preset": "none",
+     "normalize__stopwords": false,
+     "normalize__symbols": "keep",
+     "transform_input": null,
+     "verbose": false
+    }
    },
    "reference": {
     "class_weight": null,
@@ -195,9 +368,78 @@
     "normalisation": "none",
     "params": {},
     "representation": "word11"
+   },
+   "selection": {
+    "families": [
+     {
+      "accepted": false,
+      "candidate": "m4_linsvm",
+      "mean_delta": 0.007036,
+      "n": 15,
+      "wins": 11
+     },
+     {
+      "accepted": false,
+      "candidate": "m4_cnb",
+      "mean_delta": -0.006315,
+      "n": 15,
+      "wins": 5
+     }
+    ],
+    "family": "logreg",
+    "final_vs_m3": {
+     "accepted": false,
+     "mean_delta": 0.0,
+     "n": 15,
+     "wins": 0
+    },
+    "gate": {
+     "accepted": false,
+     "mean_delta": 0.003204,
+     "n": 15,
+     "wins": 10
+    },
+    "m3_final": "a6_balanced",
+    "one_se": 3,
+    "param": "C",
+    "picked": 1,
+    "tfidf_steps": [
+     {
+      "accepted": false,
+      "candidate": "m4_logreg_C1+min_df2",
+      "mean_delta": 0.001981,
+      "n": 15,
+      "wins": 12
+     },
+     {
+      "accepted": false,
+      "candidate": "m4_logreg_C1+sublinear",
+      "mean_delta": 0.002836,
+      "n": 15,
+      "wins": 10
+     }
+    ]
    }
   },
   "sentiment": {
+   "baselines": [
+    {
+     "class_weight": null,
+     "model": "dummy_most_frequent",
+     "name": "dummy_most_frequent",
+     "normalisation": "none",
+     "params": {},
+     "representation": "word11"
+    },
+    {
+     "class_weight": null,
+     "model": "dummy_stratified",
+     "name": "dummy_stratified",
+     "normalisation": "none",
+     "params": {},
+     "representation": "word11"
+    }
+   ],
    "certainty": {
     "fresh_levels": [
      {
@@ -217,6 +459,20 @@
       "level": "low",
       "n": 2509,
       "share": 0.377577
+     }
+    ],
+    "per_repeat_thresholds": [
+     {
+      "high": 0.6,
+      "medium": 0.5
+     },
+     {
+      "high": 0.6,
+      "medium": 0.5
+     },
+     {
+      "high": 0.6,
+      "medium": 0.5
      }
     ],
     "score": "highest class probability of the logistic-regression pipeline",
@@ -271,6 +527,145 @@
     },
     "representation": "word11+char25"
    },
+   "pipelines": {
+    "dummy_most_frequent": {
+     "clf__constant": null,
+     "clf__random_state": null,
+     "clf__strategy": "most_frequent",
+     "memory": null,
+     "transform_input": null,
+     "verbose": false
+    },
+    "dummy_stratified": {
+     "clf__constant": null,
+     "clf__random_state": 0,
+     "clf__strategy": "stratified",
+     "memory": null,
+     "transform_input": null,
+     "verbose": false
+    },
+    "final": {
+     "clf__C": 0.3,
+     "clf__class_weight": "balanced",
+     "clf__dual": false,
+     "clf__fit_intercept": true,
+     "clf__intercept_scaling": 1,
+     "clf__l1_ratio": 0.0,
+     "clf__max_iter": 2000,
+     "clf__n_jobs": null,
+     "clf__penalty": "deprecated",
+     "clf__random_state": 0,
+     "clf__solver": "lbfgs",
+     "clf__tol": 0.0001,
+     "clf__verbose": 0,
+     "clf__warm_start": false,
+     "features__char25__analyzer": "char_wb",
+     "features__char25__binary": false,
+     "features__char25__decode_error": "strict",
+     "features__char25__encoding": "utf-8",
+     "features__char25__input": "content",
+     "features__char25__lowercase": true,
+     "features__char25__max_df": 1.0,
+     "features__char25__max_features": null,
+     "features__char25__min_df": 1,
+     "features__char25__ngram_range": [
+      2,
+      5
+     ],
+     "features__char25__norm": "l2",
+     "features__char25__preprocessor": null,
+     "features__char25__smooth_idf": true,
+     "features__char25__stop_words": null,
+     "features__char25__strip_accents": null,
+     "features__char25__sublinear_tf": false,
+     "features__char25__token_pattern": "(?u)\\b\\w\\w+\\b",
+     "features__char25__tokenizer": null,
+     "features__char25__use_idf": true,
+     "features__char25__vocabulary": null,
+     "features__n_jobs": null,
+     "features__transformer_weights": null,
+     "features__verbose": false,
+     "features__verbose_feature_names_out": true,
+     "features__word11__analyzer": "word",
+     "features__word11__binary": false,
+     "features__word11__decode_error": "strict",
+     "features__word11__encoding": "utf-8",
+     "features__word11__input": "content",
+     "features__word11__lowercase": true,
+     "features__word11__max_df": 1.0,
+     "features__word11__max_features": null,
+     "features__word11__min_df": 1,
+     "features__word11__ngram_range": [
+      1,
+      1
+     ],
+     "features__word11__norm": "l2",
+     "features__word11__preprocessor": null,
+     "features__word11__smooth_idf": true,
+     "features__word11__stop_words": null,
+     "features__word11__strip_accents": null,
+     "features__word11__sublinear_tf": false,
+     "features__word11__token_pattern": "(?u)\\b\\w\\w+\\b",
+     "features__word11__tokenizer": null,
+     "features__word11__use_idf": true,
+     "features__word11__vocabulary": null,
+     "memory": null,
+     "normalize__digits": "keep",
+     "normalize__negation": false,
+     "normalize__preset": "none",
+     "normalize__stopwords": false,
+     "normalize__symbols": "keep",
+     "transform_input": null,
+     "verbose": false
+    },
+    "reference": {
+     "clf__C": 1.0,
+     "clf__class_weight": null,
+     "clf__dual": false,
+     "clf__fit_intercept": true,
+     "clf__intercept_scaling": 1,
+     "clf__l1_ratio": 0.0,
+     "clf__max_iter": 2000,
+     "clf__n_jobs": null,
+     "clf__penalty": "deprecated",
+     "clf__random_state": 0,
+     "clf__solver": "lbfgs",
+     "clf__tol": 0.0001,
+     "clf__verbose": 0,
+     "clf__warm_start": false,
+     "features__analyzer": "word",
+     "features__binary": false,
+     "features__decode_error": "strict",
+     "features__encoding": "utf-8",
+     "features__input": "content",
+     "features__lowercase": true,
+     "features__max_df": 1.0,
+     "features__max_features": null,
+     "features__min_df": 1,
+     "features__ngram_range": [
+      1,
+      1
+     ],
+     "features__norm": "l2",
+     "features__preprocessor": null,
+     "features__smooth_idf": true,
+     "features__stop_words": null,
+     "features__strip_accents": null,
+     "features__sublinear_tf": false,
+     "features__token_pattern": "(?u)\\b\\w\\w+\\b",
+     "features__tokenizer": null,
+     "features__use_idf": true,
+     "features__vocabulary": null,
+     "memory": null,
+     "normalize__digits": "keep",
+     "normalize__negation": false,
+     "normalize__preset": "none",
+     "normalize__stopwords": false,
+     "normalize__symbols": "keep",
+     "transform_input": null,
+     "verbose": false
+    }
+   },
    "reference": {
     "class_weight": null,
     "model": "logreg",
@@ -278,8 +673,61 @@
     "normalisation": "none",
     "params": {},
     "representation": "word11"
+   },
+   "selection": {
+    "families": [
+     {
+      "accepted": false,
+      "candidate": "m4_linsvm",
+      "mean_delta": -0.021683,
+      "n": 15,
+      "wins": 2
+     },
+     {
+      "accepted": false,
+      "candidate": "m4_cnb",
+      "mean_delta": -0.170677,
+      "n": 15,
+      "wins": 0
+     }
+    ],
+    "family": "logreg",
+    "final_vs_m3": {
+     "accepted": false,
+     "mean_delta": -0.003126,
+     "n": 15,
+     "wins": 6
+    },
+    "gate": null,
+    "m3_final": "a6_balanced",
+    "one_se": 0.3,
+    "param": "C",
+    "picked": 0.3,
+    "tfidf_steps": [
+     {
+      "accepted": false,
+      "candidate": "m4_logreg_C0.3+min_df2",
+      "mean_delta": -0.005684,
+      "n": 15,
+      "wins": 5
+     },
+     {
+      "accepted": false,
+      "candidate": "m4_logreg_C0.3+sublinear",
+      "mean_delta": 1.6e-05,
+      "n": 15,
+      "wins": 9
+     }
+    ]
    }
   }
  },
- "version": 1
+ "test_rows": 554,
+ "train_fold_rows": 1772.0,
+ "version": 2,
+ "versions": {
+  "numpy": "2.5.4",
+  "pandas": "2.3.3",
+  "scikit-learn": "1.8.0"
+ }
 }

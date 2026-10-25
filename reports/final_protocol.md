@@ -2,7 +2,7 @@
 
 This file and `reports/protocol.json` fix every choice that the one-shot test in M5 depends on. All numbers come from the development partition only; the held-out test partition has not been read by any step up to here (experiment code can only call `split.load_dev()`).
 
-- Protocol fingerprint (configurations + certainty thresholds): `250d1d7cbaa75a17d8d162c8028b44bdd438323ae4af9e17716c4ebd49c12131`
+- Protocol fingerprint (configurations + certainty thresholds): `ec20dc6ba81703194ac2b536f51698cb75d38427d44fa04f6d2f6401a7977b41`
 - Development partition: 2215 reviews, `data/processed/dev.csv` SHA-256 `f0d6dc75ebd542d24cb04993bd4a492c13bd14433d91b05b58828acbd795c708`
 - Split file `data/splits/split_v1.csv` SHA-256 `6a8a686fc143992313443060c5106ed80dd78a09013e85665bbeea39930a70f0`
 
@@ -12,16 +12,17 @@ This file and `reports/protocol.json` fix every choice that the one-shot test in
 |---|---|---|---|---|---|---|---|---|
 | sentiment | final | `m4_logreg_C0.3` | logreg | word11+char25 TF-IDF | none | balanced | `{"C": 0.3}` | 0.6529 ± 0.0244 |
 | sentiment | reference | `logreg_word11` | logreg | word11 TF-IDF | none | None | `{}` | 0.5236 ± 0.0285 |
-| aspect | final | `m4_logreg_C3` | logreg | char25 TF-IDF | none | balanced | `{"C": 3}` | 0.9101 ± 0.0162 |
+| aspect | final | `m4_logreg_C1` | logreg | char25 TF-IDF | none | balanced | `{"C": 1}` | 0.9069 ± 0.0157 |
 | aspect | reference | `logreg_word11` | logreg | word11 TF-IDF | none | None | `{}` | 0.7923 ± 0.0157 |
 
-TF-IDF uses scikit-learn defaults (no `min_df`, no `sublinear_tf`); `word11` is word unigrams, `char25` is character 2-5 grams inside word boundaries, `+` joins both in one feature union. Logistic regression uses `max_iter=2000` and `random_state=0`. The dummy baselines (`most_frequent`, `stratified`) are reported next to the models in M5.
+`word11` is word unigrams, `char25` is character 2-5 grams inside word boundaries, `+` joins both in one feature union. Every pipeline parameter, library defaults included, is listed under `pipelines` in `reports/protocol.json` and is part of the fingerprint. The dummy baselines (`most_frequent`, `stratified`) are fitted and reported next to the models in M5.
 
 How the configurations were chosen (all on the same 3 x 5 grouped CV; rule: mean paired Macro-F1 gain >= 0.01 and a gain in >= 11 of 15 folds):
 
-- Representation and preprocessing: `reports/ablations.md`. Sentiment uses word unigrams + character 2-5 grams, aspect character 2-5 grams. No normalisation, symbol, digit, negation, stopword or text-statistic option passed the rule; balanced class weights passed for both tasks.
-- Model family and regularisation: `reports/models.md`. Linear SVM and Complement NB did not pass the rule, so logistic regression stays. The regularisation strength comes from the pre-declared C grid with the one-standard-error rule (sentiment C = 0.3, aspect C = 3). Both picks differ from the default C = 1 by less than the fold noise (sentiment -0.003, aspect +0.003 mean Macro-F1). They are kept because the selection procedure was fixed before the grid was run, not because they are better.
-- The optional pre-trained sentence-vector experiment was not run: its pre-declared condition was not met (`reports/error_analysis.md`).
+- Representation and preprocessing: `reports/ablations.md` (M3 final configuration per task: sentiment `a6_balanced`, aspect `a6_balanced`).
+- sentiment, model family and regularisation (`reports/models.md`): families m4_linsvm -0.0217, 2/15 (rejected); m4_cnb -0.1707, 0/15 (rejected); family kept: logreg. One-standard-error pick on the C grid: 0.3; acceptance check against the default: not needed (not weaker-regularised than the default); value used: C = 0.3. Final vs the M3 configuration: -0.0031 mean, 6/15 folds, i.e. within the fold noise: the value comes from the procedure fixed before the grid was run, not from being better.
+- aspect, model family and regularisation (`reports/models.md`): families m4_linsvm +0.0070, 11/15 (rejected); m4_cnb -0.0063, 5/15 (rejected); family kept: logreg. One-standard-error pick on the C grid: 3; acceptance check against the default: +0.0032, 10/15 folds, failed; value used: C = 1. Final vs the M3 configuration: +0.0000 mean, 0/15 folds, i.e. within the fold noise: the value comes from the procedure fixed before the grid was run, not from being better.
+- The optional pre-trained sentence-vector experiment was not run: its pre-declared condition was not met (`reports/error_analysis.md`, per-review categories in `reports/error_categories.csv`).
 
 ## 2. Certainty levels
 
@@ -32,9 +33,11 @@ Score: the highest class probability of the task's logistic-regression pipeline.
 | sentiment | 0.60 | 0.50 | high | 2295 | 0.345 | 0.942 | 0.352 | 0.937 |
 | sentiment | 0.60 | 0.50 | medium | 1825 | 0.275 | 0.832 | 0.270 | 0.817 |
 | sentiment | 0.60 | 0.50 | low | 2525 | 0.380 | 0.579 | 0.378 | 0.593 |
-| aspect | 0.60 | 0.40 | high | 4928 | 0.742 | 0.980 | 0.744 | 0.983 |
-| aspect | 0.60 | 0.40 | medium | 1139 | 0.171 | 0.794 | 0.170 | 0.773 |
-| aspect | 0.60 | 0.40 | low | 578 | 0.087 | 0.498 | 0.085 | 0.514 |
+| aspect | 0.50 | 0.35 | high | 4720 | 0.710 | 0.981 | 0.713 | 0.981 |
+| aspect | 0.50 | 0.35 | medium | 1196 | 0.180 | 0.816 | 0.181 | 0.812 |
+| aspect | 0.50 | 0.35 | low | 729 | 0.110 | 0.554 | 0.106 | 0.548 |
+
+Band counts pool the three repeats, so every review appears three times and a band of 30 rows holds about 10 distinct reviews. Thresholds (high / medium) computed on each repeat alone: sentiment: 0.60 / 0.50, 0.60 / 0.50, 0.60 / 0.50; aspect: 0.45 / 0.35, 0.50 / 0.40, 0.50 / 0.35.
 
 Caveats: the final models are trained on the whole development partition (about 25% more rows than a CV training fold), so their probabilities may be somewhat higher and the share of high-certainty answers larger. The real accuracy per level is measured on the test partition in M5 and reported as found. The fresh-seed columns use folds that played no role in setting the thresholds.
 
@@ -46,12 +49,12 @@ Computed after the configurations were frozen, from CV repeats with fresh seeds 
 |---|---|---|---|---|
 | sentiment | final `m4_logreg_C0.3` | 0.6564 | 0.0248 | [0.607, 0.706] |
 | sentiment | reference `logreg_word11` | 0.5316 | 0.0271 | [0.477, 0.586] |
-| aspect | final `m4_logreg_C3` | 0.9106 | 0.0144 | [0.882, 0.939] |
+| aspect | final `m4_logreg_C1` | 0.9075 | 0.0140 | [0.879, 0.936] |
 | aspect | reference `logreg_word11` | 0.7948 | 0.0181 | [0.759, 0.831] |
 
-Joint accuracy (both labels right, final configurations): mean 0.7085, sd 0.0186, expected range [0.671, 0.746].
+Joint accuracy (both labels right, final configurations): mean 0.7054, sd 0.0202, expected range [0.665, 0.746].
 
-A CV fold holds about 443 reviews and is predicted by a model trained on about 1,770; the test partition holds 554 and is predicted by a model trained on all 2,215, so the test score may sit slightly above the CV mean. The range is recorded for comparison only: it is not a pass mark, and no result outside it leads to another test run.
+A CV fold holds about 443 reviews and is predicted by a model trained on about 1,772; the test partition holds 554 and is predicted by a model trained on all 2,215, so the test score may sit slightly above the CV mean. The sampling part of the fold sd shrinks by about sqrt(443/554) = 0.89 on the larger test partition, so the range is slightly conservative. It is recorded for comparison only: it is not a pass mark, and no result outside it leads to another test run.
 
 ## 4. Clean-tree rerun of the cited rows
 
@@ -68,13 +71,13 @@ The configurations cited here were run again on the selection folds from a commi
 | aspect | `dummy_stratified` | b101ad8+dirty | 622b560 | 0.2016 | 0.2016 | 0.0e+00 |
 | aspect | `logreg_word11` | b101ad8+dirty | 622b560 | 0.7923 | 0.7923 | 0.0e+00 |
 | aspect | `a6_balanced` | 83132aa | 622b560 | 0.9069 | 0.9069 | 0.0e+00 |
-| aspect | `m4_logreg_C3` | db1d5db | 622b560 | 0.9101 | 0.9101 | 0.0e+00 |
+| aspect | `m4_logreg_C1` | db1d5db | c546512 | 0.9069 | 0.9069 | 0.0e+00 |
 
 ## 5. One-shot test procedure (M5)
 
-1. `python -m arabic_reviews final` recomputes the fingerprint from the code and this protocol and stops if they differ.
+1. Before it opens the test partition, `python -m arabic_reviews final` rebuilds the protocol from code and the development partition (configurations, pipeline parameters, certainty thresholds from the out-of-fold predictions, data hashes, versions; no rerun rows) and stops unless the fingerprint equals the one above.
 2. For each task it fits the frozen configuration, the reference model and both dummy baselines on the whole development partition.
 3. It reads the held-out test partition once, predicts it once per model, and records the access (time, commit, fingerprint, file hash) in `reports/test_access_log.json`. A second run is refused unless an explicit flag and a written methodological reason are given; the first result stays the reported one.
 4. Reported per task: Macro-F1 (primary), per-class precision / recall / F1, balanced accuracy, accuracy and the confusion matrix; joint accuracy over both tasks; accuracy and share per certainty level; the position of the test Macro-F1 relative to the expected range above.
-5. Uncertainty: 95% percentile bootstrap intervals for Macro-F1 and every per-class F1 with 2000 resamples (seed 0), resampling whole near-duplicate groups (`group_id`) because rows of a group are not independent, and a paired bootstrap of the Macro-F1 difference between the final configuration and the reference model on the same resamples. No claim is made from very small cells (for example prices x neutral).
+5. Uncertainty: 95% percentile bootstrap intervals with 2000 resamples (seed 0). Resampling unit: group_id: draw as many near-duplicate groups as the test partition has, with replacement (rows of a group are not independent). Metrics: Macro-F1 and per-class F1 with the fixed label list and zero_division=0, as in the CV. Paired comparisons: final minus reference and final minus each dummy, on the same resamples: interval of the difference and share of resamples with a difference <= 0. Decision: final beats a dummy when the lower bound of the paired difference is > 0; versus the reference the result is 'above' (lower bound > 0), 'not distinguishable' (interval contains 0) or 'below' (upper bound < 0); success requires beating both dummies and not 'below' the reference. No claim is made from very small cells (for example prices x neutral).
 6. Errors on the test partition are described, but no model, threshold or feature is changed after the test has been read.
