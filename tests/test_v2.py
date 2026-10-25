@@ -33,7 +33,8 @@ def test_guard_refuses_test_files_and_records_data_files(tmp_path, monkeypatch):
         with pytest.raises(PermissionError):
             pd.read_csv(tmp_path / "data/processed/test.csv")
         assert (tmp_path / "data/processed/dev.csv").read_text(encoding="utf-8") == "x"
-    assert opened == {"data/processed/dev.csv"}
+        (tmp_path / "reports/out.json").write_text("{}", encoding="utf-8")
+    assert opened == {"read": {"data/processed/dev.csv"}, "written": {"reports/out.json"}}
     assert (tmp_path / "data/processed/test.csv").read_text(encoding="utf-8") == "x"  # only inside the block
 
 
@@ -137,6 +138,15 @@ def test_outer_level_intervals_cover_the_point_accuracy():
             assert row["interval"] is None
 
 
+def test_a_verification_run_never_appends(tmp_path, monkeypatch):
+    monkeypatch.setattr(v2, "LOG_FILE", tmp_path / "experiments.csv")
+    m = _metrics([0.6] * 15)
+    m.update(accuracy=[0.7] * 15, balanced=[0.6] * 15)
+    with pytest.raises(RuntimeError, match="never appends"):
+        v2.log_row("sentiment", "x", "selection", None, m, 1.0, L, append=False)
+    assert not v2.LOG_FILE.exists()
+
+
 def test_logged_rows_are_checked_field_by_field(tmp_path, monkeypatch):
     monkeypatch.setattr(v2, "LOG_FILE", tmp_path / "experiments.csv")
     monkeypatch.setattr(v2, "V2_DIR", tmp_path)
@@ -150,6 +160,8 @@ def test_logged_rows_are_checked_field_by_field(tmp_path, monkeypatch):
         v2.log_row("sentiment", "x", "selection", spec, changed, 1.0, L)
     with pytest.raises(RuntimeError, match="notes"):
         v2.log_row("sentiment", "x", "selection", spec, m, 1.0, L, notes="other")
+    with pytest.raises(RuntimeError, match="spec"):  # e.g. a normalisation change the summary columns do not show
+        v2.log_row("sentiment", "x", "selection", dict(spec, normalisation="light"), m, 1.0, L)
 
 
 def test_paired_bootstrap_resamples_groups_once_for_all_repeats():
@@ -159,6 +171,11 @@ def test_paired_bootstrap_resamples_groups_once_for_all_repeats():
     same = [y.copy() for _ in range(3)]
     b = v2.paired_bootstrap(y, groups, same, same, L, resamples=200)
     assert all(v["low"] == v["high"] == 0 for v in b.values())
+    # Two repeats whose model roles are swapped: with the same groups in both repeats the two repeat-level
+    # differences cancel exactly in every resample; separate draws per repeat would not cancel.
+    noisy = np.where(rng.random(300) < 0.4, POS, y)
+    b = v2.paired_bootstrap(y, groups, [y, noisy], [noisy, y], L, resamples=200)
+    assert all(abs(v["low"]) < 1e-12 and abs(v["high"]) < 1e-12 for v in b.values())
     worse = [np.where(rng.random(300) < 0.3, POS, y) for _ in range(3)]
     b = v2.paired_bootstrap(y, groups, same, worse, L, resamples=200)
     assert b["macro"]["low"] > 0 and b["macro"]["point"] > 0

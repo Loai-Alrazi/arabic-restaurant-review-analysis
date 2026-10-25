@@ -1,5 +1,5 @@
-"""Version 1 stays frozen: its decision log, protocol, one-shot test results and model card are
-byte-identical to the merged release, and the saved version-1 pipelines still give the recorded
+"""Version 1 stays frozen: its decision log, protocol, one-shot test results and model card have the
+same bytes as the merged release (line endings normalised, as git stores them), and the saved version-1 pipelines still give the recorded
 predictions (golden values recorded before version 2 changed the inference module).
 
 This is a version-1 integrity check: it hashes the bytes of the published files and parses none of
@@ -36,6 +36,15 @@ needs_models = pytest.mark.skipif(
 def test_frozen_version_1_file_is_unchanged(path):
     data = (config.ROOT / path).read_bytes().replace(b"\r\n", b"\n")
     assert hashlib.sha256(data).hexdigest() == FROZEN[path]
+
+
+def test_version_1_result_objects_keep_their_fields():
+    import dataclasses
+
+    from arabic_reviews.predict import Prediction, TaskResult
+
+    assert [f.name for f in dataclasses.fields(Prediction)] == ["sentiment", "aspect", "notes"]
+    assert [f.name for f in dataclasses.fields(TaskResult)] == ["label", "score", "level", "second_label", "second_score"]
 
 
 @needs_models
