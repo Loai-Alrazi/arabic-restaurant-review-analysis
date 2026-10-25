@@ -188,3 +188,45 @@ def test_resolve_axes_logs_each_candidate_once_and_is_reproducible(tmp_path, mon
     assert [r["accepted"] for r in rows] == [r["accepted"] for r in again]
     assert final["name"] == final_again["name"]
     assert "Axes 2-6" in experiments.axes_markdown({"sentiment": (rows, final)})
+
+
+def test_negation_and_stopwords_handle_diacritics_double_negation_and_whitespace():
+    from arabic_reviews import text
+
+    assert text.remove_stopwords("كَلام جميل بَارد وَاضح") == "كَلام جميل بَارد وَاضح"
+    assert text.mark_negation("مَا عجبني") == "مَا NEG_عجبني"
+    assert text.mark_negation("لا ما عجبني") == "لا ما NEG_عجبني"
+    assert text.mark_negation("ما\nعجبني") == "ما\nNEG_عجبني"
+    assert text.mark_negation("ما. جيد") == "ما. جيد"  # a sentence boundary ends the scope
+    assert text.text_stats("لَا")[5] == 1.0
+
+
+def test_text_stats_use_raw_text_even_when_symbols_are_removed():
+    spec = experiments._spec("x", "logreg", "word11", symbols="remove", textstats=True)
+    pipe = features.build_pipeline(spec)
+    pipe.fit(["جميل !!", "سيء 😀", "جيد", "رديء"], ["a", "b", "a", "b"])
+    stats = pipe.named_steps["features"].transformer_list[1][1].named_steps["stats"]
+    assert stats.transform(["جميل !!"])[0][2] == 2.0
+
+
+def test_symbols_remove_and_digits_token_output():
+    from arabic_reviews import text
+
+    assert text.normalize("جميل😀!", symbols="remove") == "جميل"
+    assert text.normalize("سعر ١٢٠ ريال", digits="token") == "سعر <NUM> ريال"
+
+
+def test_resolve_axes_follows_accepted_winner_and_rejects_stale_rows(tmp_path, monkeypatch):
+    monkeypatch.setattr(experiments, "EXPERIMENTS_FILE", tmp_path / "experiments.csv")
+    dev = toy_dev(12)
+    experiments.run_pending(dev, experiments.REGISTRY)
+    experiments.resolve_axes("sentiment", dev)
+    log = experiments.read_log()
+    # make a2_full a clear winner: later axes must then be compared with it
+    idx = log.index[log.exp_id == "sentiment/a2_full"][0]
+    log.at[idx, "fold_scores"] = json.dumps([0.99] * 15)
+    log.to_csv(tmp_path / "experiments.csv", index=False)
+    # a2_full is now accepted, so a3 is built on it; the logged a3 rows came from the old
+    # chain and are reported as stale instead of being silently reused
+    with pytest.raises(ValueError, match="a3_symbols_separate"):
+        experiments.resolve_axes("sentiment")

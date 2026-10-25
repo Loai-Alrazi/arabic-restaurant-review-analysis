@@ -54,7 +54,8 @@ def cmd_experiments() -> None:
     from .split import load_dev
 
     dev = load_dev()
-    new = run_pending(dev)
+    before = len(read_log())
+    run_pending(dev)
     results = {task: resolve_axes(task, dev) for task in TASKS}
     ABLATIONS_FILE.write_text(
         "# Feature-engineering ablations (development CV only)\n\n"
@@ -62,7 +63,7 @@ def cmd_experiments() -> None:
         + axes_markdown(results) + "\n",
         encoding="utf-8", newline="\n",
     )
-    print(f"{len(new)} baseline/axis-1 experiment(s) appended; {len(read_log())} rows in reports/experiments.csv")
+    print(f"{len(read_log()) - before} experiment(s) appended; {len(read_log())} rows in reports/experiments.csv")
 
 
 COMMANDS = {

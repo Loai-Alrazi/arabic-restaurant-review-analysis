@@ -99,7 +99,7 @@ def _git_sha() -> str:
     try:
         out = subprocess.run(["git", "rev-parse", "--short", "HEAD"], capture_output=True,
                              text=True, cwd=config.ROOT, check=True)
-        dirty = subprocess.run(["git", "status", "--porcelain", "--untracked-files=no"],
+        dirty = subprocess.run(["git", "status", "--porcelain", "--untracked-files=no", "--", ".", ":!reports"],
                                capture_output=True, text=True, cwd=config.ROOT, check=True).stdout.strip()
         return out.stdout.strip() + ("+dirty" if dirty else "")
     except (OSError, subprocess.CalledProcessError):
@@ -113,7 +113,19 @@ def read_log() -> pd.DataFrame:
 
 
 def fold_scores(log: pd.DataFrame, eid: str) -> list[float]:
-    return json.loads(log.loc[log.exp_id == eid, "fold_scores"].iloc[0])
+    rows = log.loc[log.exp_id == eid, "fold_scores"]
+    if rows.empty:
+        raise KeyError(f"experiment {eid} is not in the log")
+    return json.loads(rows.iloc[0])
+
+
+def row_identity(spec: dict) -> dict:
+    """The log columns that identify what an experiment ran."""
+    return dict(
+        preprocessing=describe_preprocessing(spec),
+        features=spec["representation"] + ("+textstats" if spec.get("textstats") else ""),
+        params=json.dumps({**spec["params"], "class_weight": spec["class_weight"]}, sort_keys=True),
+    )
 
 
 def _append(row: dict) -> None:
@@ -127,13 +139,10 @@ def _append(row: dict) -> None:
 def run_experiment(task: str, spec: dict, dev: pd.DataFrame) -> dict:
     """Evaluate one spec on the 3 x 5 CV and append its row to the log."""
     res = cv_scores(spec, dev, task)
-    features = spec["representation"] + ("+textstats" if spec.get("textstats") else "")
     row = dict(
         exp_id=exp_id(task, spec["name"]),
         timestamp=datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
-        git_sha=_git_sha(), task=task, preprocessing=describe_preprocessing(spec),
-        features=features, model=spec["model"],
-        params=json.dumps({**spec["params"], "class_weight": spec["class_weight"]}, sort_keys=True),
+        git_sha=_git_sha(), task=task, model=spec["model"], **row_identity(spec),
         cv_macro_f1_mean=round(float(np.mean(res["f1"])), 4),
         cv_macro_f1_std=round(float(np.std(res["f1"], ddof=1)), 4),
         fold_scores=json.dumps([round(float(v), 6) for v in res["f1"]]),
@@ -217,10 +226,16 @@ def resolve_axes(task: str, dev: pd.DataFrame | None = None) -> tuple[list[dict]
     for key, title, variants in AXES:
         for variant, change in variants:
             name = f"{key}_{variant}"
-            spec = dict(winner, name=name, notes=f"{title}: {variant}", **change)
+            spec = dict(winner, name=name, notes=f"{title}: {variant} (base: {winner['name']})", **change)
             if dev is not None and exp_id(task, name) not in set(read_log().exp_id):
                 run_experiment(task, spec, dev)
             log = read_log()
+            logged = log.loc[log.exp_id == exp_id(task, name)]
+            if logged.empty:
+                raise KeyError(f"experiment {exp_id(task, name)} is not in the log")
+            stale = {k: v for k, v in row_identity(spec).items() if logged.iloc[0][k] != v}
+            if stale:
+                raise ValueError(f"logged {exp_id(task, name)} does not match the current winner chain: {stale}")
             res = compare(fold_scores(log, exp_id(task, winner["name"])), fold_scores(log, exp_id(task, name)))
             rows.append(dict(axis=title, candidate=name, winner_before=winner["name"], **res))
             if res["accepted"]:

@@ -31,6 +31,7 @@ EMOJI_GLUE_RE = re.compile("[‍︎️\U0001f3fb-\U0001f3ff]")
 
 _ARABIC_INDIC = "٠١٢٣٤٥٦٧٨٩۰۱۲۳۴۵۶۷۸۹"
 _DIGIT_TABLE = str.maketrans(_ARABIC_INDIC, "0123456789" * 2)
+_NO_MARKS = {ord(ch): None for ch in "".join(map(chr, range(0x064B, 0x0660))) + "ٰ"}
 _LETTER_TABLE = str.maketrans({"أ": "ا", "إ": "ا", "آ": "ا", "ٱ": "ا", "ى": "ي", "ة": "ه"})
 
 LIGHT = dict(
@@ -105,27 +106,42 @@ STOPWORDS = frozenset(
      "عند", "حتى", "لكن", "و", "ب", "ل", "ك"}
 ) - NEGATIONS
 
-_WORD_RE = re.compile(r"\w+")
+# A word keeps its combining marks (diacritics) and tatweel; they are only stripped for lookups.
+_WORD_RE = re.compile(r"[\wً-ٰٟـ]+")
+_TOKEN_RE = re.compile(r"([\wً-ٰٟـ]+)|([.!?؟…؛;]+)")
 NEG_PREFIX = "NEG_"
 
 
+def _plain(word: str) -> str:
+    """Word without diacritics and tatweel, for stopword and negation lookups."""
+    return word.replace(TATWEEL, "").translate(_NO_MARKS)
+
+
 def mark_negation(text: str) -> str:
-    """Prefix the word that follows a negation particle with ``NEG_`` (the particle stays)."""
-    out, pending = [], False
-    for token in text.split(" "):
-        if pending and token and _WORD_RE.fullmatch(token):
-            token, pending = NEG_PREFIX + token, False
-        elif token in NEGATIONS:
-            pending = True
-        elif token:
+    """Prefix the word that follows a negation particle with ``NEG_`` (the particle stays;
+    a second particle in a row is not prefixed; a sentence boundary ends the scope)."""
+    pending = False
+
+    def mark(m: re.Match) -> str:
+        nonlocal pending
+        word = m.group(1)
+        if word is None:  # sentence boundary
             pending = False
-        out.append(token)
-    return " ".join(out)
+            return m.group()
+        if _plain(word) in NEGATIONS:
+            pending = True
+            return word
+        if pending:
+            pending = False
+            return NEG_PREFIX + word
+        return word
+
+    return _TOKEN_RE.sub(mark, text)
 
 
 def remove_stopwords(text: str) -> str:
     """Drop function words in ``STOPWORDS``; every other word, including negations, stays."""
-    kept = _WORD_RE.sub(lambda m: "" if m.group() in STOPWORDS else m.group(), text)
+    kept = _WORD_RE.sub(lambda m: "" if _plain(m.group()) in STOPWORDS else m.group(), text)
     return WHITESPACE_RE.sub(" ", kept).strip()
 
 
@@ -137,5 +153,5 @@ def text_stats(text: str) -> list[float]:
         math.log1p(len(text)), math.log1p(len(words)),
         float(text.count("!")), float(text.count("?") + text.count("؟")),
         float(sum(1 for ch in text if unicodedata.category(ch) == "So")),
-        float(sum(1 for w in words if w in NEGATIONS)),
+        float(sum(1 for w in words if _plain(w) in NEGATIONS)),
     ]
