@@ -1,0 +1,194 @@
+[
+ {
+  "text": "القهوة ممتازة والطعم رائع",
+  "notes": [],
+  "sentiment": {
+   "label": "ايجابي",
+   "score": 0.851109,
+   "level": "high",
+   "second_label": null
+  },
+  "aspect": {
+   "label": "المشروبات",
+   "score": 0.896293,
+   "level": "high",
+   "second_label": null
+  }
+ },
+ {
+  "text": "الخدمة بطيئة والموظف ما رد علينا",
+  "notes": [],
+  "sentiment": {
+   "label": "سلبي",
+   "score": 0.687285,
+   "level": "high",
+   "second_label": null
+  },
+  "aspect": {
+   "label": "الخدمة",
+   "score": 0.956782,
+   "level": "high",
+   "second_label": null
+  }
+ },
+ {
+  "text": "الأسعار غالية مقارنة بالكمية",
+  "notes": [],
+  "sentiment": {
+   "label": "سلبي",
+   "score": 0.621427,
+   "level": "high",
+   "second_label": null
+  },
+  "aspect": {
+   "label": "الاسعار",
+   "score": 0.973584,
+   "level": "high",
+   "second_label": null
+  }
+ },
+ {
+  "text": "الجلسة هادئة والمكان مريح",
+  "notes": [],
+  "sentiment": {
+   "label": "ايجابي",
+   "score": 0.472696,
+   "level": "low",
+   "second_label": "سلبي"
+  },
+  "aspect": {
+   "label": "الجلسات",
+   "score": 0.984321,
+   "level": "high",
+   "second_label": null
+  }
+ },
+ {
+  "text": "ما عجبني الكيك",
+  "notes": [],
+  "sentiment": {
+   "label": "سلبي",
+   "score": 0.392746,
+   "level": "low",
+   "second_label": "ايجابي"
+  },
+  "aspect": {
+   "label": "المأكولات",
+   "score": 0.457698,
+   "level": "medium",
+   "second_label": "المشروبات"
+  }
+ },
+ {
+  "text": "القهوة لذيذة لكن الأسعار مرتفعة",
+  "notes": [],
+  "sentiment": {
+   "label": "محايد",
+   "score": 0.473856,
+   "level": "low",
+   "second_label": "سلبي"
+  },
+  "aspect": {
+   "label": "الاسعار",
+   "score": 0.722425,
+   "level": "high",
+   "second_label": null
+  }
+ },
+ {
+  "text": "الفرع في شارع التحلية",
+  "notes": [],
+  "sentiment": {
+   "label": "سلبي",
+   "score": 0.558794,
+   "level": "medium",
+   "second_label": "ايجابي"
+  },
+  "aspect": {
+   "label": "الجلسات",
+   "score": 0.428155,
+   "level": "medium",
+   "second_label": "الخدمة"
+  }
+ },
+ {
+  "text": "ممتاز بس مزدحم",
+  "notes": [],
+  "sentiment": {
+   "label": "محايد",
+   "score": 0.888247,
+   "level": "high",
+   "second_label": null
+  },
+  "aspect": {
+   "label": "الخدمة",
+   "score": 0.611041,
+   "level": "high",
+   "second_label": null
+  }
+ },
+ {
+  "text": "الخدمة لا بأس بها",
+  "notes": [],
+  "sentiment": {
+   "label": "سلبي",
+   "score": 0.392537,
+   "level": "low",
+   "second_label": "ايجابي"
+  },
+  "aspect": {
+   "label": "الخدمة",
+   "score": 0.815621,
+   "level": "high",
+   "second_label": null
+  }
+ },
+ {
+  "text": "مقبول",
+  "notes": [],
+  "sentiment": {
+   "label": "محايد",
+   "score": 0.575053,
+   "level": "medium",
+   "second_label": "ايجابي"
+  },
+  "aspect": {
+   "label": "الجلسات",
+   "score": 0.239888,
+   "level": "low",
+   "second_label": "الاسعار"
+  }
+ },
+ {
+  "text": "الكوكيز يابس والقهوة باردة",
+  "notes": [],
+  "sentiment": {
+   "label": "محايد",
+   "score": 0.470049,
+   "level": "low",
+   "second_label": "ايجابي"
+  },
+  "aspect": {
+   "label": "المشروبات",
+   "score": 0.478453,
+   "level": "medium",
+   "second_label": "المأكولات"
+  }
+ },
+ {
+  "text": "المكان نظيف والموظفين محترمين",
+  "notes": [],
+  "sentiment": {
+   "label": "ايجابي",
+   "score": 0.510672,
+   "level": "medium",
+   "second_label": "سلبي"
+  },
+  "aspect": {
+   "label": "الخدمة",
+   "score": 0.566373,
+   "level": "high",
+   "second_label": null
+  }
+ }
+]

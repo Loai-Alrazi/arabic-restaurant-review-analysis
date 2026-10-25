@@ -113,9 +113,27 @@ def cmd_final(rerun_reason: str | None = None, check_only: bool = False) -> None
     print(f"joint accuracy {r['joint']['accuracy']:.4f}; run {r['access']['run']} logged in reports/test_access_log.json")
 
 
+def cmd_v2_experiments() -> None:
+    from .v2 import RESULTS_MD, run_experiments
+
+    r = run_experiments()
+    print(f"selection: {r['selection']['chosen']}; adopted: {r['adopted']}; released sentiment configuration: "
+          f"{r['released']}; wrote {RESULTS_MD.relative_to(config.ROOT).as_posix()}")
+
+
+def cmd_v2_build() -> None:
+    from .v2 import CARD_FILE, PROTOCOL_FILE, build
+
+    r = build()
+    print(f"version-2 fingerprint {r['fingerprint']}; sentiment configuration {r['released']}; wrote "
+          f"{PROTOCOL_FILE.relative_to(config.ROOT).as_posix()}, {CARD_FILE.relative_to(config.ROOT).as_posix()} "
+          "and models/v2/*.joblib (local); the held-out test was not read")
+
+
 COMMANDS = {
     "ingest": cmd_ingest, "validate": cmd_validate, "split": cmd_split, "eda": cmd_eda,
     "experiments": cmd_experiments, "models": cmd_models, "protocol": cmd_protocol, "final": cmd_final,
+    "v2-experiments": cmd_v2_experiments, "v2-build": cmd_v2_build,
 }
 
 

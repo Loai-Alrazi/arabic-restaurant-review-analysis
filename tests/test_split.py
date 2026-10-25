@@ -118,8 +118,8 @@ def test_load_dev_rejects_rows_outside_the_dev_partition(tmp_path, monkeypatch):
 def test_only_pipeline_steps_reference_files_that_contain_test_rows():
     src = Path(split.__file__).parent
     for marker, allowed in [
-        # walkthrough.py names the test file only to lock it (tests/test_walkthrough.py)
-        ("TEST_FILE", {"config.py", "reports.py", "final.py", "walkthrough.py"}),
+        # walkthrough.py and v2.py name the test file only to lock it (tests/test_walkthrough.py, tests/test_v2.py)
+        ("TEST_FILE", {"config.py", "reports.py", "final.py", "walkthrough.py", "v2.py"}),
         ("test.csv", {"config.py", "reports.py"}),
         ("VALIDATED_FILE", {"config.py", "reports.py", "__main__.py"}),
         ("validated.csv", {"config.py", "reports.py"}),
