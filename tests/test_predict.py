@@ -1,5 +1,6 @@
 """Input validation (always run) and inference on the saved pipelines (run when models/*.joblib exist)."""
 
+import re
 import time
 from pathlib import Path
 
@@ -124,8 +125,17 @@ def test_app_smoke():
     app = Path(config.ROOT / "app" / "streamlit_app.py")
     at = AppTest.from_file(str(app), default_timeout=60).run()
     assert not at.exception
-    at.text_area[0].set_value("الخدمة بطيئة جدا").run()
-    assert not at.exception and len(at.subheader) == 2
+    text = "الخدمة بطيئة جدا"
+    at.text_area[0].set_value(text).run()
+    assert not at.exception
+    card, expected = at.get_by_key("result"), predict(text)
+    assert [s.value for s in card.subheader] == ["المشاعر", "الجانب الرئيسي"]
+    unhamza = lambda s: s.replace("إ", "ا").replace("أ", "ا")  # the page spells some labels with hamza
+    for kind, task in (("sentiment", expected.sentiment), ("aspect", expected.aspect)):
+        assert unhamza(task.label) in unhamza(at.get_by_key(f"label-{kind}").markdown[0].value)
+    shown = " ".join(e.value for e in (*card.header, *card.subheader, *card.markdown, *card.caption))
+    assert shown.count("ثقة النموذج:") == 2
+    assert not re.search(r"[0-9٠-٩%٪]", shown)  # certainty in words only: no score, probability or percentage
     at.text_area[0].set_value("hello world").run()
     assert not at.exception and at.warning
 

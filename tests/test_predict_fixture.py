@@ -6,6 +6,7 @@ of synthetic reviews gives two small pipelines with the same structure and a min
 
 import json
 import platform
+import re
 import sys
 from pathlib import Path
 
@@ -161,12 +162,28 @@ def test_app_smoke(tiny_models):
     app = Path(__file__).resolve().parents[1] / "app" / "streamlit_app.py"
     at = AppTest.from_file(str(app), default_timeout=60).run()
     assert not at.exception
-    at.text_area[0].set_value("الخدمة بطيئة جدا").run()
-    assert not at.exception and len(at.subheader) == 2
+    text = "الخدمة بطيئة جدا"
+    at.text_area[0].set_value(text).run()
+    assert not at.exception
+    card, expected = at.get_by_key("result"), predict(text)
+    assert [s.value for s in card.subheader] == ["المشاعر", "الجانب الرئيسي"]
+    unhamza = lambda s: s.replace("إ", "ا").replace("أ", "ا")  # the page spells some labels with hamza
+    for kind, task in (("sentiment", expected.sentiment), ("aspect", expected.aspect)):
+        assert unhamza(task.label) in unhamza(at.get_by_key(f"label-{kind}").markdown[0].value)
+    shown = " ".join(e.value for e in (*card.header, *card.subheader, *card.markdown, *card.caption))
+    assert shown.count("ثقة النموذج:") == 2
+    assert not re.search(r"[0-9٠-٩%٪]", shown)  # certainty in words only: no score, probability or percentage
     at.text_area[0].set_value("hello world").run()
     assert not at.exception and at.warning
     at.text_area[0].set_value("ﺍﻟﺨﺪﻣﺔ ﺳﻴﺌﺔ ﺟﺪﺍ").run()
     assert not at.exception and at.warning
+
+    # ?example=<key> fills that example, so its result is visible on load.
+    linked = AppTest.from_file(str(app), default_timeout=60)
+    linked.query_params["example"] = "service"
+    linked.run()
+    assert not linked.exception
+    assert linked.text_area[0].value == "الخدمة بطيئة والموظف ما رد علينا" and linked.get_by_key("result")
 
 
 def test_presentation_form_pattern_matches_letters_only():
