@@ -21,6 +21,7 @@ from . import config, split
 from .features import build_pipeline
 
 TASKS = {"sentiment": "sentiment", "aspect": "aspect"}
+LABELS = {"sentiment": list(config.SENTIMENTS), "aspect": list(config.ASPECTS)}
 COLUMNS = [
     "exp_id", "timestamp", "git_sha", "task", "preprocessing", "features", "model", "params",
     "cv_macro_f1_mean", "cv_macro_f1_std", "fold_scores", "balanced_acc_mean",
@@ -68,7 +69,7 @@ def cv_scores(spec: dict, dev: pd.DataFrame, task: str) -> dict:
             model.fit(X[train], y[train])
             seconds += time.perf_counter() - start
             pred = model.predict(X[valid])
-            f1s.append(f1_score(y[valid], pred, average="macro", zero_division=0))
+            f1s.append(f1_score(y[valid], pred, average="macro", labels=LABELS[task], zero_division=0))
             bal.append(balanced_accuracy_score(y[valid], pred))
             acc.append(accuracy_score(y[valid], pred))
     return dict(f1=f1s, bal=bal, acc=acc, seconds=seconds)
@@ -87,7 +88,9 @@ def _git_sha() -> str:
     try:
         out = subprocess.run(["git", "rev-parse", "--short", "HEAD"], capture_output=True,
                              text=True, cwd=config.ROOT, check=True)
-        return out.stdout.strip()
+        dirty = subprocess.run(["git", "status", "--porcelain", "--untracked-files=no"],
+                               capture_output=True, text=True, cwd=config.ROOT, check=True).stdout.strip()
+        return out.stdout.strip() + ("+dirty" if dirty else "")
     except (OSError, subprocess.CalledProcessError):
         return "unknown"
 
@@ -100,6 +103,14 @@ def read_log() -> pd.DataFrame:
 
 def fold_scores(log: pd.DataFrame, eid: str) -> list[float]:
     return json.loads(log.loc[log.exp_id == eid, "fold_scores"].iloc[0])
+
+
+def _append(row: dict) -> None:
+    """Append one finished experiment at once, so a crash never loses completed rows."""
+    EXPERIMENTS_FILE.parent.mkdir(parents=True, exist_ok=True)
+    fresh = not EXPERIMENTS_FILE.exists()
+    pd.DataFrame([row], columns=COLUMNS).to_csv(
+        EXPERIMENTS_FILE, mode="a", header=fresh, index=False, lineterminator="\n")
 
 
 def run_pending(dev: pd.DataFrame | None = None, registry: list[dict] | None = None) -> pd.DataFrame:
@@ -116,7 +127,7 @@ def run_pending(dev: pd.DataFrame | None = None, registry: list[dict] | None = N
             if eid in done:
                 continue
             res = cv_scores(spec, dev, task)
-            rows.append(dict(
+            row = dict(
                 exp_id=eid,
                 timestamp=datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
                 git_sha=_git_sha(), task=task, preprocessing=spec["normalisation"],
@@ -124,17 +135,14 @@ def run_pending(dev: pd.DataFrame | None = None, registry: list[dict] | None = N
                 params=json.dumps({**spec["params"], "class_weight": spec["class_weight"]}, sort_keys=True),
                 cv_macro_f1_mean=round(float(np.mean(res["f1"])), 4),
                 cv_macro_f1_std=round(float(np.std(res["f1"], ddof=1)), 4),
-                fold_scores=json.dumps([round(float(v), 4) for v in res["f1"]]),
+                fold_scores=json.dumps([round(float(v), 6) for v in res["f1"]]),
                 balanced_acc_mean=round(float(np.mean(res["bal"])), 4),
                 accuracy_mean=round(float(np.mean(res["acc"])), 4),
                 fit_seconds=round(res["seconds"], 2), notes=spec["notes"],
-            ))
-    new = pd.DataFrame(rows, columns=COLUMNS)
-    if len(new):
-        out = pd.concat([log, new], ignore_index=True) if len(log) else new
-        EXPERIMENTS_FILE.parent.mkdir(parents=True, exist_ok=True)
-        out.to_csv(EXPERIMENTS_FILE, index=False, lineterminator="\n")
-    return new
+            )
+            rows.append(row)
+            _append(row)
+    return pd.DataFrame(rows, columns=COLUMNS)
 
 
 AXIS1_CHAIN = ["logreg_word11", "logreg_word12", "logreg_char25", "logreg_word11+char25"]

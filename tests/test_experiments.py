@@ -100,3 +100,36 @@ def test_experiment_code_cannot_reach_the_held_out_test():
     for name in ("experiments.py", "features.py"):
         src = (Path(config.ROOT) / "src" / "arabic_reviews" / name).read_text(encoding="utf-8")
         assert not re.search(r"TEST_FILE|test\.csv|VALIDATED_FILE|validated\.csv|SPLIT_FILE|\[.partition", src), name
+
+
+def test_validation_rows_never_reach_fit():
+    from sklearn.base import BaseEstimator, ClassifierMixin
+
+    seen = []
+
+    class Recorder(ClassifierMixin, BaseEstimator):
+        def fit(self, X, y):
+            seen.append(set(X))
+            self.classes_ = np.unique(y)
+            return self
+
+        def predict(self, X):
+            seen[-1].isdisjoint(set(X)) or pytest.fail("validation text seen in fit")
+            return np.array([self.classes_[0]] * len(X))
+
+    dev = toy_dev()
+    dev["text"] = [f"t{i}" for i in range(len(dev))]
+    orig = experiments.build_pipeline
+    experiments.build_pipeline = lambda spec: Recorder()
+    try:
+        experiments.cv_scores(experiments.REGISTRY[0], dev, "sentiment")
+    finally:
+        experiments.build_pipeline = orig
+    assert len(seen) == 15 and all(len(s) < len(dev) for s in seen)
+
+
+def test_axis_markdown_lists_decisions():
+    log = pd.DataFrame([dict(exp_id=f"{t}/{n}", fold_scores=json.dumps([v] * 15))
+                        for t in experiments.TASKS for n, v in (("a", 0.5), ("b", 0.6))])
+    md = experiments.axis_markdown(log, "Axis X", ["a", "b"])
+    assert "| b | a | +0.1000 | 15/15 | accepted |" in md and "Winner for aspect: `b`" in md
