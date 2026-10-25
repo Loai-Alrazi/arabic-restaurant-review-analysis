@@ -210,9 +210,18 @@ def split_markdown(full, result, checks: dict, props, validated_sha256: str) -> 
         " or different line breaks, and re-spaced or one-word-edited copies. Rules 2–5 link these. A recurring"
         " source pattern is the same review with the aspect word swapped (248/249 coffee/sweets, 407/1311,"
         " 759/1658); these are linked, since for sentiment they are the same text.",
-        "- **Not linked by design**: stock phrases under 4 words ('good coffee') and 4-word phrases that differ in"
-        " their content word (rids 149/1863, 'quiet and beautiful place' vs 'quiet and tidy place'). New reviews"
+        "- **Short phrases**: 2–3-word phrases that differ only in clitics or spacing ('good coffee' vs 'the good"
+        " coffee') have the same bare key and are linked by the `form` rule. Phrases that differ in their content"
+        " word are not linked (rids 149/1863, 'quiet and beautiful place' vs 'quiet and tidy place'); new reviews"
         " contain such phrases too, so they are part of the task rather than copies.",
+        "- **Template families are only partly linked**: the `words` rule needs 80% of the shorter text matched, so a"
+        " 5-word template with one word swapped is linked while a 4-word one is not. A few such pairs may fall into"
+        " different CV folds (a small optimism in development scores) or across the partition boundary.",
+        "- **Over-linking**: a shared closing phrase or a stock phrase can join two otherwise unrelated reviews;"
+        " this keeps both in one partition and costs only a little stratification freedom.",
+        "- **Limits of the leakage checks**: the counts below test the linking itself and are true by construction;"
+        " the independent test in `tests/test_split.py` uses measures that are special cases of the rules."
+        " Residual copies that no rule links cannot be excluded without reading the held-out texts, which is not done.",
         "",
         "Linked pairs by rule (cosine first, otherwise the first copy rule that fired): "
         + ", ".join(f"{k} {v}" for k, v in sorted(_pair_rules(pairs, sp.SIM_THRESHOLD).value_counts().items()))

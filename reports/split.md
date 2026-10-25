@@ -27,7 +27,10 @@ How the rules were chosen: sampled pairs in every band from 0.60 to 1.00 were re
 
 - **≥ 0.80**: the same review copied with a few words cut or added (for example rids 681/785, 436/1336, 446/1346, 569/607), or the same short stock phrase. Linking stock phrases is conservative.
 - **Below 0.80** cosine mixes reviews that only share vocabulary with copies that symmetric cosine misses: fragments of a longer review (rid 364 is the tail of 407 and 1311), copies with glued words or different line breaks, and re-spaced or one-word-edited copies. Rules 2–5 link these. A recurring source pattern is the same review with the aspect word swapped (248/249 coffee/sweets, 407/1311, 759/1658); these are linked, since for sentiment they are the same text.
-- **Not linked by design**: stock phrases under 4 words ('good coffee') and 4-word phrases that differ in their content word (rids 149/1863, 'quiet and beautiful place' vs 'quiet and tidy place'). New reviews contain such phrases too, so they are part of the task rather than copies.
+- **Short phrases**: 2–3-word phrases that differ only in clitics or spacing ('good coffee' vs 'the good coffee') have the same bare key and are linked by the `form` rule. Phrases that differ in their content word are not linked (rids 149/1863, 'quiet and beautiful place' vs 'quiet and tidy place'); new reviews contain such phrases too, so they are part of the task rather than copies.
+- **Template families are only partly linked**: the `words` rule needs 80% of the shorter text matched, so a 5-word template with one word swapped is linked while a 4-word one is not. A few such pairs may fall into different CV folds (a small optimism in development scores) or across the partition boundary.
+- **Over-linking**: a shared closing phrase or a stock phrase can join two otherwise unrelated reviews; this keeps both in one partition and costs only a little stratification freedom.
+- **Limits of the leakage checks**: the counts below test the linking itself and are true by construction; the independent test in `tests/test_split.py` uses measures that are special cases of the rules. Residual copies that no rule links cannot be excluded without reading the held-out texts, which is not done.
 
 Linked pairs by rule (cosine first, otherwise the first copy rule that fired): chars 26, cosine 96, edit 4, form 10, words 40.
 
