@@ -37,5 +37,5 @@ def test_eda_counts_cover_exactly_the_dev_rows(tmp_path, monkeypatch):
     n_dev = int((split.partition == "dev").sum())
     report = eda.run_eda(figures=False)
     assert f"Rows: **{n_dev}**" in report
-    assert f"| total | " in report and report.split("| total | ")[1].split("
-")[0].endswith(f"| {n_dev} |")
+    totals_row = next(line for line in report.splitlines() if line.startswith("| total | "))
+    assert totals_row.endswith(f"| {n_dev} |")
