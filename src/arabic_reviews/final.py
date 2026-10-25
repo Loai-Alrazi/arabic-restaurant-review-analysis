@@ -9,10 +9,12 @@ or chosen here depends on the test rows.
 
 from __future__ import annotations
 
+import copy
 import hashlib
 import io
 import json
 import platform
+from contextlib import contextmanager
 from datetime import datetime, timezone
 
 import joblib
@@ -28,9 +30,14 @@ FINAL_JSON = config.REPORTS_DIR / "final_test.json"
 FINAL_MD = config.REPORTS_DIR / "final_test.md"
 MODELS_DIR = config.ROOT / "models"
 SCRATCH_DIR = config.ROOT / ".local" / "scratch"  # per-row predictions with texts stay local
+LOCAL_ACCESS_LOG = config.ROOT / ".local" / "test_access_log.json"  # git-ignored copy of the access log
+LOCK_FILE = SCRATCH_DIR / "final.lock"
+# Fingerprint of reports/final_protocol.md as merged before M5; a regenerated protocol cannot replace it.
+FROZEN_FINGERPRINT = "ec20dc6ba81703194ac2b536f51698cb75d38427d44fa04f6d2f6401a7977b41"
+TOLERANCE = 1e-6  # protocol.json stores numbers rounded to 6 digits
 DUMMIES = ("dummy_most_frequent", "dummy_stratified")
 ROLES = ("final", "reference", *DUMMIES)
-SMALL_CELL = 20  # test cells with fewer rows are described, never used for a claim
+SMALL_CELL = 20  # fixed before the test read: smaller classes or cells are described, never used for a claim
 
 
 class ProtocolMismatch(RuntimeError):
@@ -43,8 +50,17 @@ class RepeatedTestRun(RuntimeError):
 
 # ---- guards ---------------------------------------------------------------------------------
 
-def read_access_log() -> list[dict]:
-    return json.loads(ACCESS_LOG.read_text(encoding="utf-8")) if ACCESS_LOG.exists() else []
+def previous_reads() -> list[dict]:
+    """Access entries of earlier runs (the published log or its local copy, whichever is longer).
+    Outputs of an earlier read without any log stop the run: the log must be restored first."""
+    logs = [json.loads(p.read_text(encoding="utf-8")) for p in (ACCESS_LOG, LOCAL_ACCESS_LOG) if p.exists()]
+    entries = max(logs, key=len, default=[])
+    traces = [p for p in (FINAL_JSON, FINAL_MD, MODELS_DIR / "model_card.json") if p.exists()]
+    traces += sorted(SCRATCH_DIR.glob("test_predictions_*"))
+    if not entries and traces:
+        raise RepeatedTestRun(f"{traces[0].name} comes from an earlier test read but no access log exists; "
+                              "restore the access log before anything else")
+    return entries
 
 
 def check_access(entries: list[dict], reason: str | None) -> None:
@@ -53,10 +69,48 @@ def check_access(entries: list[dict], reason: str | None) -> None:
                               f"({ACCESS_LOG.name}); a new run needs --rerun-reason with a methodological reason")
 
 
+def frozen_results(p: dict) -> dict:
+    """Development-only results that are not in the fingerprint but must be reproduced exactly."""
+    out = {"joint_expected_range": p["joint_expected_range"]}
+    for task, t in p["tasks"].items():
+        out[f"{task} expected_range"] = t["expected_range"]
+        out[f"{task} selection_levels"] = t["certainty"]["selection_levels"]
+        out[f"{task} fresh_levels"] = t["certainty"]["fresh_levels"]
+    return out
+
+
+def _close(a, b) -> bool:
+    if isinstance(a, dict) and isinstance(b, dict):
+        return a.keys() == b.keys() and all(_close(a[k], b[k]) for k in a)
+    if isinstance(a, list) and isinstance(b, list):
+        return len(a) == len(b) and all(_close(x, y) for x, y in zip(a, b))
+    if isinstance(a, float) or isinstance(b, float):
+        if a is None or b is None:
+            return a is b
+        return (np.isnan(a) and np.isnan(b)) or abs(a - b) <= TOLERANCE
+    return a == b
+
+
 def check_fingerprint(rebuilt: dict, frozen: dict) -> None:
-    if rebuilt["fingerprint"] != frozen["fingerprint"]:
-        raise ProtocolMismatch(f"rebuilt protocol fingerprint {rebuilt['fingerprint']} differs from the frozen "
-                               f"{frozen['fingerprint']}; the test partition was not opened")
+    if rebuilt["fingerprint"] != FROZEN_FINGERPRINT or frozen["fingerprint"] != FROZEN_FINGERPRINT:
+        raise ProtocolMismatch(f"rebuilt protocol fingerprint {rebuilt['fingerprint']} / stored "
+                               f"{frozen['fingerprint']} differ from the frozen {FROZEN_FINGERPRINT}; "
+                               "the test partition was not opened")
+    stored = frozen_results(frozen)
+    for key, value in frozen_results(rebuilt).items():
+        if not _close(json.loads(json.dumps(value)), stored[key]):
+            raise ProtocolMismatch(f"rebuilt {key} differs from the frozen protocol; the test partition was not opened")
+
+
+def with_frozen_results(rebuilt: dict, frozen: dict) -> dict:
+    """The rebuilt protocol carrying the stored (checked equal) ranges and level tables."""
+    p = copy.deepcopy(rebuilt)
+    p["joint_expected_range"] = frozen["joint_expected_range"]
+    for task, t in p["tasks"].items():
+        t["expected_range"] = frozen["tasks"][task]["expected_range"]
+        for key in ("selection_levels", "fresh_levels"):
+            t["certainty"][key] = frozen["tasks"][task]["certainty"][key]
+    return p
 
 
 def provenance() -> str:
@@ -75,10 +129,10 @@ def read_test_once(entries: list[dict], reason: str | None, sha: str, fingerprin
     entry = dict(run=len(entries) + 1, time=datetime.now(timezone.utc).isoformat(timespec="seconds"),
                  commit=sha, fingerprint=fingerprint, test_sha256=hashlib.sha256(raw).hexdigest(),
                  test_rows=None, reason=reason)
-    _write_json(ACCESS_LOG, entries + [entry])
+    _log_access(entries + [entry])
     test = pd.read_csv(io.BytesIO(raw), dtype={"text": str}, keep_default_na=False)
     entry["test_rows"] = len(test)
-    _write_json(ACCESS_LOG, entries + [entry])
+    _log_access(entries + [entry])
     published = pd.read_csv(config.SPLIT_FILE)
     expected = published.loc[published.partition == "test", ["rid", "group_id"]].sort_values("rid").reset_index(drop=True)
     got = test[["rid", "group_id"]].sort_values("rid").reset_index(drop=True)
@@ -88,6 +142,24 @@ def read_test_once(entries: list[dict], reason: str | None, sha: str, fingerprin
         if not test[column].isin(experiments.LABELS[task]).all():
             raise RuntimeError(f"unknown {column} labels in the test file")
     return test, entry
+
+
+def _log_access(entries: list[dict]) -> None:
+    for path in (ACCESS_LOG, LOCAL_ACCESS_LOG):
+        _write_json(path, entries)
+
+
+@contextmanager
+def _lock():
+    LOCK_FILE.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        LOCK_FILE.open("x").close()
+    except FileExistsError:
+        raise RuntimeError(f"another final run holds {LOCK_FILE}; delete it only if no run is active") from None
+    try:
+        yield
+    finally:
+        LOCK_FILE.unlink(missing_ok=True)
 
 
 # ---- metrics and bootstrap ------------------------------------------------------------------
@@ -164,12 +236,35 @@ def fit_models(dev: pd.DataFrame, t: dict, task: str) -> dict:
     return {role: build_pipeline(specs[role]).fit(X, y) for role in ROLES}
 
 
-def evaluate(test: pd.DataFrame, models: dict, p: dict) -> dict:
-    X, out, final_ok = test["text"].to_numpy(), {}, {}
+def predict(test: pd.DataFrame, models: dict) -> dict:
+    X = test["text"].to_numpy()
+    return {task: dict(preds={role: models[task][role].predict(X) for role in ROLES},
+                       score=models[task]["final"].predict_proba(X).max(axis=1)) for task in experiments.TASKS}
+
+
+def save_predictions(test: pd.DataFrame, predicted: dict, run: int) -> None:
+    """Raw test predictions of every model, written before any metric so that a later failure can
+    be recomputed from them without opening the test partition again (local only: they hold texts)."""
+    SCRATCH_DIR.mkdir(parents=True, exist_ok=True)
+    for task, column in experiments.TASKS.items():
+        rows = test[["rid", "group_id", "text", column]].rename(columns={column: "y"})
+        rows = rows.assign(**{f"pred_{role}": v for role, v in predicted[task]["preds"].items()},
+                           score_final=predicted[task]["score"])
+        rows.to_csv(SCRATCH_DIR / f"test_predictions_{task}_run{run}.csv", index=False, encoding="utf-8")
+
+
+def save_models(models: dict) -> None:
+    """The final pipelines are fitted on the development partition only, so saving them needs no test read."""
+    MODELS_DIR.mkdir(parents=True, exist_ok=True)
+    for task in experiments.TASKS:
+        joblib.dump(models[task]["final"], MODELS_DIR / f"{task}.joblib")
+
+
+def evaluate(test: pd.DataFrame, predicted: dict, p: dict) -> dict:
+    out, final_ok = {}, {}
     for task, column in experiments.TASKS.items():
         labels, y, t = experiments.LABELS[task], test[column].to_numpy(), p["tasks"][task]
-        preds = {role: models[task][role].predict(X) for role in ROLES}
-        score = models[task]["final"].predict_proba(X).max(axis=1)
+        preds, score = predicted[task]["preds"], predicted[task]["score"]
         final_ok[task] = preds["final"] == y
         boot = bootstrap(y, preds, labels, test["group_id"].to_numpy(), p["bootstrap"])
         metrics = {role: task_metrics(y, preds[role], labels) for role in ROLES}
@@ -179,7 +274,6 @@ def evaluate(test: pd.DataFrame, models: dict, p: dict) -> dict:
             expected_range=t["expected_range"],
             position={role: position(metrics[role]["macro_f1"], t["expected_range"][role])
                       for role in ("final", "reference")},
-            predictions=pd.DataFrame(dict(rid=test["rid"].to_numpy(), y=y, pred=preds["final"], score=score)),
         )
     joint = float((final_ok["sentiment"] & final_ok["aspect"]).mean())
     cells = (test.assign(ok=final_ok["sentiment"] & final_ok["aspect"])
@@ -190,13 +284,14 @@ def evaluate(test: pd.DataFrame, models: dict, p: dict) -> dict:
 
 
 def output_paths(run: int) -> tuple:
-    if run == 1:
-        return FINAL_JSON, FINAL_MD
-    return tuple(p.with_name(f"{p.stem}_run{run}{p.suffix}") for p in (FINAL_JSON, FINAL_MD))
+    paths = (FINAL_JSON, FINAL_MD, MODELS_DIR / "model_card.json")
+    return paths if run == 1 else tuple(p.with_name(f"{p.stem}_run{run}{p.suffix}") for p in paths)
 
 
 def run_final(rerun_reason: str | None = None, check_only: bool = False) -> dict:
-    entries = read_access_log()
+    if check_only and rerun_reason is not None:
+        raise ValueError("--check never reads the test partition, so it takes no rerun reason")
+    entries = previous_reads()
     if not check_only:
         check_access(entries, rerun_reason)
     sha = provenance()
@@ -204,29 +299,41 @@ def run_final(rerun_reason: str | None = None, check_only: bool = False) -> dict
     dev = split.load_dev()
     rebuilt = protocol.build_protocol(dev, rerun=False)
     check_fingerprint(rebuilt, frozen)
-    models = {task: fit_models(dev, rebuilt["tasks"][task], task) for task in experiments.TASKS}
+    p = with_frozen_results(rebuilt, frozen)
+    models = {task: fit_models(dev, p["tasks"][task], task) for task in experiments.TASKS}
+    save_models(models)
     if check_only:
-        return dict(fingerprint=rebuilt["fingerprint"], commit=sha, test_read=False)
-    test, entry = read_test_once(entries, rerun_reason, sha, rebuilt["fingerprint"])
-    result = evaluate(test, models, rebuilt)
-    result.update(access=entry, fingerprint=rebuilt["fingerprint"], dev_rows=len(dev), test_rows=len(test))
-    SCRATCH_DIR.mkdir(parents=True, exist_ok=True)
-    for task, t in result["tasks"].items():
-        t.pop("predictions").merge(test[["rid", "text"]], on="rid").to_csv(
-            SCRATCH_DIR / f"test_predictions_{task}_run{entry['run']}.csv", index=False, encoding="utf-8")
-    json_path, md_path = output_paths(entry["run"])
-    _write_json(json_path, protocol._rounded(result))
-    md_path.write_text(final_markdown(result, rebuilt), encoding="utf-8", newline="\n")
-    MODELS_DIR.mkdir(parents=True, exist_ok=True)
-    for task in experiments.TASKS:
-        joblib.dump(models[task]["final"], MODELS_DIR / f"{task}.joblib")
-    _write_json(MODELS_DIR / "model_card.json", protocol._rounded(model_card(rebuilt, result, dev, sha)))
+        return dict(fingerprint=p["fingerprint"], commit=sha, test_read=False)
+    with _lock():
+        entries = previous_reads()  # a run that finished meanwhile counts
+        check_access(entries, rerun_reason)
+        if provenance() != sha:
+            raise RuntimeError("the tree changed while the models were fitted; the test partition was not opened")
+        test, entry = read_test_once(entries, rerun_reason, sha, p["fingerprint"])
+        predicted = predict(test, models)
+        save_predictions(test, predicted, entry["run"])
+        result = evaluate(test, predicted, p)
+        result.update(access=entry, fingerprint=p["fingerprint"], dev_rows=len(dev), test_rows=len(test))
+        json_path, md_path, card_path = output_paths(entry["run"])
+        _write_json(json_path, protocol._rounded(result))
+        md_path.write_text(final_markdown(result, p), encoding="utf-8", newline="\n")
+        _write_json(card_path, protocol._rounded(model_card(p, result, dev, sha)))
     return result
+
+
+def _json_ready(obj):
+    if isinstance(obj, float) and np.isnan(obj):
+        return None  # strict JSON has no NaN (a certainty level without test rows has no accuracy)
+    if isinstance(obj, dict):
+        return {k: _json_ready(v) for k, v in obj.items()}
+    if isinstance(obj, (list, tuple)):
+        return [_json_ready(v) for v in obj]
+    return obj
 
 
 def _write_json(path, obj) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(obj, indent=1, ensure_ascii=False) + "\n", encoding="utf-8", newline="\n")
+    path.write_text(json.dumps(_json_ready(obj), indent=1, ensure_ascii=False) + "\n", encoding="utf-8", newline="\n")
 
 
 def model_card(p: dict, result: dict, dev: pd.DataFrame, sha: str) -> dict:
@@ -235,24 +342,29 @@ def model_card(p: dict, result: dict, dev: pd.DataFrame, sha: str) -> dict:
     tasks = {}
     for task, t in p["tasks"].items():
         row = log.loc[log.exp_id == experiments.exp_id(task, t["final"]["name"])].iloc[0]
-        r = result["tasks"][task]
+        r, m = result["tasks"][task], result["tasks"][task]["metrics"]["final"]
         tasks[task] = dict(
             file=f"models/{task}.joblib", labels=p["labels"][task], configuration=t["final"],
             pipeline_params=t["pipelines"]["final"],
             cv_macro_f1=dict(mean=float(row.cv_macro_f1_mean), sd=float(row.cv_macro_f1_std), folds="3 x 5 grouped"),
             expected_range=t["expected_range"]["final"],
-            test=dict(macro_f1=r["metrics"]["final"]["macro_f1"], interval=r["bootstrap"]["macro_f1"]["final"],
-                      accuracy=r["metrics"]["final"]["accuracy"], decision=r["decision"]),
+            test=dict(macro_f1=m["macro_f1"], interval=r["bootstrap"]["macro_f1"]["final"], accuracy=m["accuracy"],
+                      balanced_accuracy=m["balanced_accuracy"],
+                      per_class_f1={c["label"]: c["f1"] for c in m["per_class"]}, decision=r["decision"]),
             certainty=dict(score=t["certainty"]["score"], thresholds=t["certainty"]["thresholds"],
                            test_levels=r["levels"]))
+    a = result["access"]
     return dict(
-        name="Arabic cafe review sentiment and main-aspect classifiers", commit=sha,
-        fingerprint=p["fingerprint"], trained_on=dict(partition="development", rows=p["dev_rows"],
-                                                      sha256=p["dev_sha256"], split_sha256=p["split_sha256"]),
+        name="Arabic cafe review sentiment and main-aspect classifiers", commit=sha, fingerprint=p["fingerprint"],
+        test_run=dict(run=a["run"], time=a["time"], test_sha256=a["test_sha256"], test_rows=a["test_rows"]),
+        trained_on=dict(partition="development", rows=p["dev_rows"], sha256=p["dev_sha256"],
+                        split_sha256=p["split_sha256"]),
         source=dict(record=config.SOURCE["record"], doi=config.SOURCE["doi"], license=config.SOURCE["license"]),
         versions=dict(p["versions"], joblib=joblib.__version__, python=platform.python_version()),
         tasks=tasks, joint_test_accuracy=result["joint"]["accuracy"],
-        input=dict(text="one Arabic cafe/restaurant review as plain text; one main aspect per review",
+        input=dict(accepted="one cafe/restaurant review as plain text that contains Arabic letters; empty, "
+                            "non-Arabic and over-long input is rejected by the inference step (M6) before the model",
+                   one_label_each="the models return one sentiment and one main aspect per review",
                    development_length_chars=dict(min=int(lengths.min()), p01=float(lengths.quantile(0.01)),
                                                  median=float(lengths.median()), p99=float(lengths.quantile(0.99)),
                                                  max=int(lengths.max()))),
@@ -278,8 +390,12 @@ def final_markdown(r: dict, p: dict) -> str:
         f"- Test partition: {r['test_rows']} reviews, SHA-256 `{a['test_sha256']}`; models trained on all "
         f"{r['dev_rows']} development reviews",
         f"- Intervals: {p['bootstrap']['level']:.0%} percentile bootstrap, {p['bootstrap']['resamples']} resamples "
-        f"(seed {p['bootstrap']['seed']}), near-duplicate groups as the resampling unit", "",
+        f"(seed {p['bootstrap']['seed']}), near-duplicate groups as the resampling unit",
+        f"- Classes and label cells with fewer than {SMALL_CELL} test rows (a limit fixed before the test was "
+        "read) are marked and not used for any claim", "",
     ]
+    if a["run"] > 1:
+        lines[1:1] = ["", f"> Documented rerun {a['run']}. Run 1 (`final_test.md`) remains the reported result.", ""]
     for task, t in r["tasks"].items():
         labels, m, b = experiments.LABELS[task], t["metrics"], t["bootstrap"]
         rng, d = t["expected_range"], t["decision"]
@@ -308,7 +424,8 @@ def final_markdown(r: dict, p: dict) -> str:
         ]
         for row in m["final"]["per_class"]:
             lines.append(f"| {row['label']} | {row['precision']:.3f} | {row['recall']:.3f} | {row['f1']:.3f} | "
-                         f"{_ci(b['per_class_f1']['final'][row['label']])} | {row['support']} |")
+                         f"{_ci(b['per_class_f1']['final'][row['label']])} | {row['support']}"
+                         f"{' (too small for a claim)' if row['support'] < SMALL_CELL else ''} |")
         lines += ["", "Confusion matrix (final model; rows = true, columns = predicted):", "",
                   "| true \\ predicted | " + " | ".join(labels) + " |", "|---" * (len(labels) + 1) + "|"]
         for label, counts in zip(labels, m["final"]["confusion"]):

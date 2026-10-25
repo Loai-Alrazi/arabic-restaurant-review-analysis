@@ -80,10 +80,42 @@ def test_a_second_run_needs_a_written_reason():
     final.check_access([{"run": 1}], "the test file was rebuilt after a documented split bug")
 
 
-def test_fingerprint_mismatch_stops_the_run():
-    with pytest.raises(final.ProtocolMismatch):
-        final.check_fingerprint({"fingerprint": "a"}, {"fingerprint": "b"})
-    final.check_fingerprint({"fingerprint": "a"}, {"fingerprint": "a"})
+def test_fingerprint_mismatch_stops_the_run(monkeypatch):
+    monkeypatch.setattr(final, "FROZEN_FINGERPRINT", "a")
+    rng = {"mean": 0.5, "sd": 0.01, "n": 15}
+
+    def p(fp, mean=0.5):
+        return {"fingerprint": fp, "joint_expected_range": dict(rng, mean=mean), "tasks": {}}
+    final.check_fingerprint(p("a"), p("a", 0.5 + 4e-7))  # stored numbers are rounded to 6 digits
+    for rebuilt, stored in [(p("a"), p("b")), (p("b"), p("b")), (p("a"), p("a", 0.5001))]:
+        with pytest.raises(final.ProtocolMismatch):
+            final.check_fingerprint(rebuilt, stored)
+
+
+def test_the_frozen_fingerprint_is_pinned_to_the_merged_protocol():
+    stored = json.loads(protocol.PROTOCOL_JSON.read_text(encoding="utf-8"))
+    assert final.FROZEN_FINGERPRINT == stored["fingerprint"]
+    assert final.FROZEN_FINGERPRINT in protocol.PROTOCOL_MD.read_text(encoding="utf-8")
+
+
+def test_provenance_needs_a_clean_tree_and_the_committed_protocol_and_log(monkeypatch):
+    for sha, status in [("abc1234+dirty", ""), ("unknown", ""), ("abc1234", "?? reports/test_access_log.json"),
+                        ("abc1234", " M reports/protocol.json")]:
+        monkeypatch.setattr(experiments, "_git_sha", lambda sha=sha: sha)
+        monkeypatch.setattr(experiments, "_git", lambda *a, status=status: status)
+        with pytest.raises(RuntimeError):
+            final.provenance()
+    monkeypatch.setattr(experiments, "_git_sha", lambda: "abc1234")
+    monkeypatch.setattr(experiments, "_git", lambda *a: "")
+    assert final.provenance() == "abc1234"
+
+
+def test_check_and_rerun_reason_cannot_be_combined():
+    from arabic_reviews.__main__ import main
+    with pytest.raises(SystemExit):
+        main(["final", "--check", "--rerun-reason", "x"])
+    with pytest.raises(SystemExit):
+        main(["eda", "--rerun-reason", ""])
 
 
 def test_the_test_partition_is_opened_in_one_place_only():
@@ -118,7 +150,8 @@ def toy_world(tmp_path, monkeypatch):
     for name, path in [("DEV_FILE", "dev.csv"), ("SPLIT_FILE", "split.csv"), ("TEST_FILE", "test.csv")]:
         monkeypatch.setattr(config, name, tmp_path / path)
     for mod, name, path in [(protocol, "PROTOCOL_JSON", "protocol.json"), (protocol, "PROTOCOL_MD", "protocol.md"),
-                            (final, "ACCESS_LOG", "access.json"), (final, "FINAL_JSON", "final_test.json"),
+                            (final, "ACCESS_LOG", "access.json"), (final, "LOCAL_ACCESS_LOG", "local/access.json"),
+                            (final, "LOCK_FILE", "scratch/final.lock"), (final, "FINAL_JSON", "final_test.json"),
                             (final, "FINAL_MD", "final_test.md"), (final, "MODELS_DIR", "models"),
                             (final, "SCRATCH_DIR", "scratch")]:
         monkeypatch.setattr(mod, name, tmp_path / path)
@@ -128,18 +161,29 @@ def toy_world(tmp_path, monkeypatch):
     for task in experiments.TASKS:
         experiments.resolve_axes(task, dev)
         experiments.resolve_m4(task, dev)
-    protocol.write_protocol(protocol.build_protocol(dev, rerun=False))
+    built = protocol.build_protocol(dev, rerun=False)
+    protocol.write_protocol(built)
+    monkeypatch.setattr(final, "FROZEN_FINGERPRINT", built["fingerprint"])
     return tmp_path, dev, test
 
 
 def test_final_run_end_to_end_on_toy_data(toy_world, monkeypatch):
     tmp, dev, test = toy_world
-    checked = final.run_final(check_only=True)  # verifies and fits, but never opens the test file
+    monkeypatch.setattr(config, "TEST_FILE", tmp / "missing.csv")  # any read would fail
+    checked = final.run_final(check_only=True)  # verifies, fits and saves the models, never opens the test
     assert checked["test_read"] is False and not (tmp / "access.json").exists()
+    assert (tmp / "models" / "sentiment.joblib").exists() and not (tmp / "models" / "model_card.json").exists()
+    with pytest.raises(ValueError):
+        final.run_final("reason", check_only=True)
+    monkeypatch.setattr(config, "TEST_FILE", tmp / "test.csv")
 
     r = final.run_final()
     log = json.loads((tmp / "access.json").read_text(encoding="utf-8"))
     assert len(log) == 1 and log[0]["run"] == 1 and log[0]["test_rows"] == len(test)
+    assert json.loads((tmp / "local" / "access.json").read_text(encoding="utf-8")) == log
+    assert not (tmp / "scratch" / "final.lock").exists()
+    raw = pd.read_csv(tmp / "scratch" / "test_predictions_aspect_run1.csv")
+    assert {f"pred_{role}" for role in final.ROLES} <= set(raw.columns) and len(raw) == len(test)
     assert log[0]["fingerprint"] == json.loads((tmp / "protocol.json").read_text(encoding="utf-8"))["fingerprint"]
     for task in experiments.TASKS:
         t = r["tasks"][task]
@@ -165,6 +209,41 @@ def test_final_run_end_to_end_on_toy_data(toy_world, monkeypatch):
     assert len(json.loads((tmp / "access.json").read_text(encoding="utf-8"))) == 1
     assert (tmp / "final_test.json").read_bytes() == first
 
+    # a documented rerun gets its own files and log entry; run 1 stays untouched
+    monkeypatch.setattr(config, "TEST_FILE", tmp / "test.csv")
+    card = (tmp / "models" / "model_card.json").read_bytes()
+    final.run_final(rerun_reason="documented reason")
+    log = json.loads((tmp / "access.json").read_text(encoding="utf-8"))
+    assert [e["run"] for e in log] == [1, 2] and log[1]["reason"] == "documented reason"
+    assert (tmp / "final_test.json").read_bytes() == first and (tmp / "models" / "model_card.json").read_bytes() == card
+    assert "Run 1 (`final_test.md`) remains the reported result" in (tmp / "final_test_run2.md").read_text(encoding="utf-8")
+    assert (tmp / "models" / "model_card_run2.json").exists() and (tmp / "final_test_run2.json").exists()
+
+    # wiping both logs does not turn the next run into a first run
+    (tmp / "access.json").unlink()
+    (tmp / "local" / "access.json").unlink()
+    with pytest.raises(final.RepeatedTestRun):
+        final.run_final()
+
+
+def test_the_local_log_copy_counts_when_the_published_log_is_gone(toy_world):
+    tmp, _, _ = toy_world
+    final._log_access([{"run": 1}])
+    (tmp / "access.json").unlink()
+    with pytest.raises(final.RepeatedTestRun):
+        final.run_final()
+
+
+def test_changed_frozen_results_stop_before_the_test_is_read(toy_world, monkeypatch):
+    tmp, _, _ = toy_world
+    stored = json.loads((tmp / "protocol.json").read_text(encoding="utf-8"))
+    stored["tasks"]["aspect"]["expected_range"]["final"]["mean"] += 0.001
+    (tmp / "protocol.json").write_text(json.dumps(stored), encoding="utf-8")
+    monkeypatch.setattr(config, "TEST_FILE", tmp / "missing.csv")
+    with pytest.raises(final.ProtocolMismatch, match="expected_range"):
+        final.run_final()
+    assert not (tmp / "access.json").exists()
+
 
 def test_changed_protocol_stops_before_the_test_is_read(toy_world, monkeypatch):
     tmp, _, _ = toy_world
@@ -182,3 +261,5 @@ def test_test_rows_must_match_the_published_split(toy_world):
     test.assign(group_id=test.group_id + 1).to_csv(tmp / "test.csv", index=False, encoding="utf-8")
     with pytest.raises(RuntimeError, match="split"):
         final.run_final()
+    log = json.loads((tmp / "access.json").read_text(encoding="utf-8"))  # the access was logged before the check
+    assert len(log) == 1 and log[0]["test_rows"] == len(test)

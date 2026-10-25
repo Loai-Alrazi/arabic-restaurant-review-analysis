@@ -123,9 +123,11 @@ def main(argv: list[str] | None = None) -> None:
                         help="final: verify the protocol and fit the models without reading the test partition")
     parser.add_argument("--rerun-reason", help="final: methodological reason for reading the test partition again")
     args = parser.parse_args(argv)
+    if args.step == "final" and args.check and args.rerun_reason is not None:
+        parser.error("--check never reads the test partition, so it takes no --rerun-reason")
     if args.step == "final":
         cmd_final(args.rerun_reason, args.check)
-    elif args.check or args.rerun_reason:
+    elif args.check or args.rerun_reason is not None:
         parser.error("--check and --rerun-reason apply to the final step only")
     else:
         COMMANDS[args.step]()
