@@ -42,9 +42,18 @@ def test_union_find_is_transitive_and_labels_by_smallest_member():
     assert groups.tolist() == [0, 0, 2, 3, 2, 2]
 
 
-def test_containment_needs_minimum_words():
-    keys = ["قهوه جيده", "قهوه جيده جدا والمكان", "الاسعار مبالغ فيها كثير", "لكن الاسعار مبالغ فيها كثير جدا"]
-    assert split.contained_pairs(keys) == {(2, 3)}
+def test_copy_rules_link_fragments_spacing_and_glued_copies_but_not_short_phrases():
+    keys = [
+        "قهوه جيده", "قهوه جيده جدا والمكان",  # short phrase inside another: not a copy
+        "الاسعار مبالغ فيها كثير", "لكن الاسعار مبالغ فيها كثير جدا",  # fragment
+        "مكان هادي و جميل", "مكان هادي وجميل",  # spacing only
+        "الكروسان طازج والدونات لذيذه جدا اليوم", "الكروسان طازجوالدونات لذيذه جدااليوم",  # glued words
+    ]
+    pairs = split.copy_pairs(keys, split.similarity_matrix(keys))
+    assert set(pairs) == {(2, 3), (4, 5), (6, 7)}
+    assert pairs[(4, 5)] == "form"
+    assert split.copy_pairs(["المكان هادئ", "مكان هادئ"], split.similarity_matrix(["المكان هادئ", "مكان هادئ"])) == {
+        (0, 1): "form"}
 
 
 def test_near_duplicates_link_copies_and_spelling_variants_but_not_unrelated_texts(synthetic):
@@ -81,6 +90,15 @@ def test_leakage_checks_detect_a_group_crossing_partitions(synthetic):
     assert checks["partition: near-duplicate pairs across parts"] >= 1
 
 
+def test_leakage_checks_detect_a_shared_key_without_group_ids(synthetic):
+    result = split.make_split(synthetic)
+    ungrouped = result.assignment.assign(group_id=result.assignment.rid)  # pretend grouping found nothing
+    ungrouped.loc[ungrouped.rid == synthetic.rid[0], "partition"] = "dev"
+    ungrouped.loc[ungrouped.rid == synthetic.rid[241], "partition"] = "test"  # re-spelled copy of row 0
+    checks = split.leakage_checks(synthetic, ungrouped, result.pairs.iloc[:0])
+    assert checks["partition: bare keys in >1 part"] >= 1
+
+
 def test_load_dev_rejects_rows_outside_the_dev_partition(tmp_path, monkeypatch):
     pd.DataFrame({"rid": [1, 2, 3], "group_id": [1, 2, 3], "partition": ["dev", "dev", "test"]}).to_csv(
         tmp_path / "split.csv", index=False)
@@ -89,12 +107,25 @@ def test_load_dev_rejects_rows_outside_the_dev_partition(tmp_path, monkeypatch):
     monkeypatch.setattr(config, "DEV_FILE", tmp_path / "dev.csv")
     with pytest.raises(RuntimeError):
         split.load_dev()
+    pd.DataFrame({"rid": [1, 1], "group_id": [1, 1], "text": ["ا", "ب"]}).to_csv(tmp_path / "dev.csv", index=False)
+    with pytest.raises(RuntimeError):  # duplicated rid replacing a missing one
+        split.load_dev()
+    pd.DataFrame({"rid": [1, 2], "group_id": [1, 9], "text": ["ا", "ب"]}).to_csv(tmp_path / "dev.csv", index=False)
+    with pytest.raises(RuntimeError):  # stale group ids
+        split.load_dev()
 
 
-def test_only_the_split_writer_references_the_test_file():
+def test_only_pipeline_steps_reference_files_that_contain_test_rows():
     src = Path(split.__file__).parent
-    users = sorted(p.name for p in src.glob("*.py") if "TEST_FILE" in p.read_text(encoding="utf-8"))
-    assert users == ["config.py", "reports.py"]
+    for marker, allowed in [
+        ("TEST_FILE", {"config.py", "reports.py"}),
+        ("test.csv", {"config.py", "reports.py"}),
+        ("VALIDATED_FILE", {"config.py", "reports.py", "__main__.py"}),
+        ("validated.csv", {"config.py", "reports.py"}),
+        ("PROCESSED_DIR", {"config.py"}),
+    ]:
+        users = {p.name for p in src.glob("*.py") if marker in p.read_text(encoding="utf-8")}
+        assert users <= allowed, (marker, users - allowed)
     assert not [n for n, _ in inspect.getmembers(split, inspect.isfunction) if "test" in n.lower()]
 
 
@@ -127,18 +158,38 @@ def test_committed_split_passes_every_leakage_check(validated, committed):
     assert set(checks.values()) == {0}, checks
 
 
+def _independent_copy_signals(keys):
+    """Written separately from split.copy_pairs: space-free equality and a shared run of 6+ words."""
+    from difflib import SequenceMatcher
+
+    words = [k.split() for k in keys]
+    flagged = set()
+    for i in range(len(keys)):
+        for j in range(i + 1, len(keys)):
+            if keys[i].replace(" ", "") == keys[j].replace(" ", ""):
+                flagged.add((i, j))
+            elif min(len(words[i]), len(words[j])) >= 6 and set(words[i]) & set(words[j]):
+                m = SequenceMatcher(None, words[i], words[j], autojunk=False)
+                if m.find_longest_match(0, len(words[i]), 0, len(words[j])).size >= 6:
+                    flagged.add((i, j))
+    return flagged
+
+
 @real
-def test_no_similar_or_identical_text_crosses_dev_and_test(validated, committed):
-    """Recomputed from the texts, independently of the stored pairs and group ids."""
+def test_no_copy_crosses_partitions_or_folds_by_an_independent_measure(validated, committed):
+    """Recomputed from the texts with measures that differ from the grouping rules
+    (char 2-4-gram TF-IDF >= 0.9, space-free equality, a shared run of 6+ words)."""
     df = validated.merge(committed, on="rid").sort_values("rid").reset_index(drop=True)
-    keys = df.text.map(dedup_key)
-    vec = TfidfVectorizer(analyzer="char_wb", ngram_range=(3, 5), sublinear_tf=True).fit_transform(keys)
-    dev, test = (df.partition == "dev").to_numpy(), (df.partition == "test").to_numpy()
-    assert (vec[dev] @ vec[test].T).max() < split.SIM_THRESHOLD
-    assert not set(keys[dev]) & set(keys[test])
-    test_keys = [k for k in keys[test] if len(k.split()) >= split.CONTAIN_MIN_WORDS]
-    dev_keys = [k for k in keys[dev] if len(k.split()) >= split.CONTAIN_MIN_WORDS]
-    assert not any(a in b for a in test_keys for b in keys[dev]) and not any(a in b for a in dev_keys for b in keys[test])
+    keys = df.text.map(dedup_key).tolist()
+    vec = TfidfVectorizer(analyzer="char", ngram_range=(2, 4)).fit_transform(keys)
+    near = np.triu((vec @ vec.T).toarray() >= 0.9, k=1)
+    flagged = _independent_copy_signals(keys) | set(zip(*map(np.ndarray.tolist, np.nonzero(near))))
+    for col in ("partition", *split.CV_COLUMNS):
+        crossing = [
+            (int(df.rid[i]), int(df.rid[j])) for i, j in flagged
+            if df[col][i] != df[col][j] and (col == "partition" or df.partition[i] == df.partition[j] == "dev")
+        ]
+        assert not crossing, (col, crossing[:5])
 
 
 @real

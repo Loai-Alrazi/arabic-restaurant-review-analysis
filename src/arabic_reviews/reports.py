@@ -159,6 +159,10 @@ def write_split_outputs(data, result, validated_sha256: str) -> dict:
     return {p.name: hashlib.sha256(p.read_bytes()).hexdigest() for p in files}
 
 
+def _pair_rules(pairs, threshold: float):
+    return pairs.copy_rule.where(pairs.cosine < threshold, "cosine")
+
+
 def split_markdown(full, result, checks: dict, props, validated_sha256: str) -> str:
     from . import split as sp
 
@@ -177,35 +181,45 @@ def split_markdown(full, result, checks: dict, props, validated_sha256: str) -> 
         "",
         "## 1. Near-duplicate grouping (label-free)",
         "",
-        f"Keys: `text.dedup_key`. Similarity: cosine on character 3–5-gram TF-IDF (`char_wb`, sublinear tf),"
-        f" fitted on all validated texts — a quality step that never sees labels. A pair is linked when"
-        f" cosine ≥ **{sp.SIM_THRESHOLD:.2f}**, or when one key of at least **{sp.CONTAIN_MIN_WORDS} words**"
-        f" occurs inside another. Groups are connected components (union-find); `group_id` is the smallest"
-        f" `rid` in the group.",
+        "Keys: `text.dedup_key`. The linking rules never read labels. Two reviews are linked when any rule fires:",
         "",
-        "Pairs per similarity band (all row pairs, before the containment rule):",
+        f"1. **cosine** ≥ {sp.SIM_THRESHOLD:.2f} on character 3–5-gram TF-IDF (`char_wb`, sublinear tf) fitted on all"
+        " validated texts (a quality step; it feeds nothing in model selection);",
+        "2. **form**: identical keys once spaces and a leading و/ف/ب and article ال on each word are removed;",
+        f"3. **edit**: character edit ratio ≥ {sp.EDIT_RATIO} on space-free keys (pairs with cosine ≥ {sp.EDIT_MIN_COSINE});",
+        f"4. **chars**: ≥ {sp.CHAR_CONTAINMENT:.0%} of the shorter key's character 4-grams occur in the other key;",
+        f"5. **words**: ≥ {sp.WORD_OVERLAP:.0%} of the shorter key's words matched in order by runs of ≥ 2 words, or a"
+        f" common run of ≥ {sp.COMMON_RUN_WORDS} consecutive words.",
+        "",
+        f"Rules 3–5 apply only when the shorter key has ≥ {sp.CONTAIN_MIN_WORDS} words. Groups are connected components"
+        " (union-find); `group_id` is the smallest `rid` in the group.",
+        "",
+        "Pairs per cosine band (all row pairs):",
         "",
         "| cosine | " + " | ".join(result.similarity_bands) + " |",
         "|---" * (len(result.similarity_bands) + 1) + "|",
         "| pairs | " + " | ".join(str(v) for v in result.similarity_bands.values()) + " |",
         "",
-        "Threshold choice (from reading sampled pairs in every band from 0.60 to 1.00):",
+        "How the rules were chosen: sampled pairs in every band from 0.60 to 1.00 were read together with their"
+        " labels; the linking algorithm itself is label-free.",
         "",
-        "- **≥ 0.80**: the same review copied with a few words cut or added (for example rids 681/785,"
-        " 436/1336, 446/1346, 569/607) or the same short stock phrase (\"quiet place\" / \"quiet place, very\")."
-        " Linking stock phrases is conservative: a model cannot score by recognising a phrase it saw in training.",
-        "- **0.70–0.80**: mostly different reviews sharing vocabulary, some with different meaning or label"
-        " (for example rids 248/249 differ only in *coffee* vs *sweets*), mixed with a few truncated copies"
-        " (rid 364 is the tail of rids 407 and 1311). Grouping by cosine here would merge distinct reviews.",
-        f"- The containment rule recovers truncated copies whose cosine falls below the threshold"
-        f" ({int((pairs.contained & (pairs.cosine < sp.SIM_THRESHOLD)).sum())} pairs, for example rids 344/375,"
-        f" 438/1338, 1795/2552). It requires {sp.CONTAIN_MIN_WORDS}+ words; shorter keys (\"good coffee\")"
-        " are common phrases rather than copies.",
+        "- **≥ 0.80**: the same review copied with a few words cut or added (for example rids 681/785, 436/1336,"
+        " 446/1346, 569/607), or the same short stock phrase. Linking stock phrases is conservative.",
+        "- **Below 0.80** cosine mixes reviews that only share vocabulary with copies that symmetric cosine"
+        " misses: fragments of a longer review (rid 364 is the tail of 407 and 1311), copies with glued words"
+        " or different line breaks, and re-spaced or one-word-edited copies. Rules 2–5 link these. A recurring"
+        " source pattern is the same review with the aspect word swapped (248/249 coffee/sweets, 407/1311,"
+        " 759/1658); these are linked, since for sentiment they are the same text.",
+        "- **Not linked by design**: stock phrases under 4 words ('good coffee') and 4-word phrases that differ in"
+        " their content word (rids 149/1863, 'quiet and beautiful place' vs 'quiet and tidy place'). New reviews"
+        " contain such phrases too, so they are part of the task rather than copies.",
         "",
-        f"Result: {len(pairs)} linked pairs ({int((pairs.cosine >= sp.SIM_THRESHOLD).sum())} by cosine,"
-        f" {int(pairs.contained.sum())} by containment), {len(sizes)} groups, of which"
-        f" {int((sizes > 1).sum())} have more than one row ({int(sizes[sizes > 1].sum())} rows)."
-        f" Largest group: {int(sizes.max())} rows.",
+        "Linked pairs by rule (cosine first, otherwise the first copy rule that fired): "
+        + ", ".join(f"{k} {v}" for k, v in sorted(_pair_rules(pairs, sp.SIM_THRESHOLD).value_counts().items()))
+        + ".",
+        "",
+        f"Result: {len(pairs)} linked pairs, {len(sizes)} groups, of which {int((sizes > 1).sum())} have more than"
+        f" one row ({int(sizes[sizes > 1].sum())} rows). Largest group: {int(sizes.max())} rows.",
         "",
         "| group size | " + " | ".join(str(k) for k in size_counts.index) + " |",
         "|---" * (len(size_counts) + 1) + "|",

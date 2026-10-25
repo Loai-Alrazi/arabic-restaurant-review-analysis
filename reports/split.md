@@ -7,28 +7,38 @@ Written by `python -m arabic_reviews split` (deterministic; no timestamps).
 
 ## 1. Near-duplicate grouping (label-free)
 
-Keys: `text.dedup_key`. Similarity: cosine on character 3–5-gram TF-IDF (`char_wb`, sublinear tf), fitted on all validated texts — a quality step that never sees labels. A pair is linked when cosine ≥ **0.80**, or when one key of at least **4 words** occurs inside another. Groups are connected components (union-find); `group_id` is the smallest `rid` in the group.
+Keys: `text.dedup_key`. The linking rules never read labels. Two reviews are linked when any rule fires:
 
-Pairs per similarity band (all row pairs, before the containment rule):
+1. **cosine** ≥ 0.80 on character 3–5-gram TF-IDF (`char_wb`, sublinear tf) fitted on all validated texts (a quality step; it feeds nothing in model selection);
+2. **form**: identical keys once spaces and a leading و/ف/ب and article ال on each word are removed;
+3. **edit**: character edit ratio ≥ 0.9 on space-free keys (pairs with cosine ≥ 0.5);
+4. **chars**: ≥ 90% of the shorter key's character 4-grams occur in the other key;
+5. **words**: ≥ 80% of the shorter key's words matched in order by runs of ≥ 2 words, or a common run of ≥ 5 consecutive words.
+
+Rules 3–5 apply only when the shorter key has ≥ 4 words. Groups are connected components (union-find); `group_id` is the smallest `rid` in the group.
+
+Pairs per cosine band (all row pairs):
 
 | cosine | >=0.60 | >=0.70 | >=0.75 | >=0.80 | >=0.85 | >=0.90 | >=0.95 |
 |---|---|---|---|---|---|---|---|
 | pairs | 584 | 246 | 155 | 96 | 59 | 33 | 14 |
 
-Threshold choice (from reading sampled pairs in every band from 0.60 to 1.00):
+How the rules were chosen: sampled pairs in every band from 0.60 to 1.00 were read together with their labels; the linking algorithm itself is label-free.
 
-- **≥ 0.80**: the same review copied with a few words cut or added (for example rids 681/785, 436/1336, 446/1346, 569/607) or the same short stock phrase ("quiet place" / "quiet place, very"). Linking stock phrases is conservative: a model cannot score by recognising a phrase it saw in training.
-- **0.70–0.80**: mostly different reviews sharing vocabulary, some with different meaning or label (for example rids 248/249 differ only in *coffee* vs *sweets*), mixed with a few truncated copies (rid 364 is the tail of rids 407 and 1311). Grouping by cosine here would merge distinct reviews.
-- The containment rule recovers truncated copies whose cosine falls below the threshold (20 pairs, for example rids 344/375, 438/1338, 1795/2552). It requires 4+ words; shorter keys ("good coffee") are common phrases rather than copies.
+- **≥ 0.80**: the same review copied with a few words cut or added (for example rids 681/785, 436/1336, 446/1346, 569/607), or the same short stock phrase. Linking stock phrases is conservative.
+- **Below 0.80** cosine mixes reviews that only share vocabulary with copies that symmetric cosine misses: fragments of a longer review (rid 364 is the tail of 407 and 1311), copies with glued words or different line breaks, and re-spaced or one-word-edited copies. Rules 2–5 link these. A recurring source pattern is the same review with the aspect word swapped (248/249 coffee/sweets, 407/1311, 759/1658); these are linked, since for sentiment they are the same text.
+- **Not linked by design**: stock phrases under 4 words ('good coffee') and 4-word phrases that differ in their content word (rids 149/1863, 'quiet and beautiful place' vs 'quiet and tidy place'). New reviews contain such phrases too, so they are part of the task rather than copies.
 
-Result: 116 linked pairs (96 by cosine, 40 by containment), 2658 groups, of which 86 have more than one row (197 rows). Largest group: 6 rows.
+Linked pairs by rule (cosine first, otherwise the first copy rule that fired): chars 26, cosine 96, edit 4, form 10, words 40.
 
-| group size | 1 | 2 | 3 | 4 | 6 |
-|---|---|---|---|---|---|
-| groups | 2572 | 68 | 13 | 4 | 1 |
+Result: 176 linked pairs, 2611 groups, of which 112 have more than one row (270 rows). Largest group: 9 rows.
+
+| group size | 1 | 2 | 3 | 4 | 5 | 6 | 9 |
+|---|---|---|---|---|---|---|---|
+| groups | 2499 | 87 | 12 | 10 | 1 | 1 | 1 |
 
 Groups with more than one label value are kept whole; their rows keep their own labels.
- Groups with mixed aspect: 9; mixed sentiment: 15.
+ Groups with mixed aspect: 15; mixed sentiment: 19.
 
 ## 2. Partitions and CV folds
 
@@ -39,37 +49,37 @@ Groups with more than one label value are kept whole; their rows keep their own 
 | task | label | dev % | test % | diff (pp) |
 |---|---|---|---|---|
 | aspect | المأكولات | 15.17 | 14.98 | 0.19 |
-| aspect | المشروبات | 31.74 | 31.77 | 0.03 |
-| aspect | الخدمة | 23.07 | 23.10 | 0.03 |
+| aspect | المشروبات | 31.69 | 31.95 | 0.26 |
+| aspect | الخدمة | 23.12 | 22.92 | 0.19 |
 | aspect | الجلسات | 18.51 | 18.59 | 0.08 |
 | aspect | الاسعار | 11.51 | 11.55 | 0.04 |
 | sentiment | ايجابي | 63.97 | 63.90 | 0.07 |
 | sentiment | سلبي | 26.86 | 26.71 | 0.15 |
 | sentiment | محايد | 9.16 | 9.39 | 0.22 |
 
-Largest difference: 0.22 pp (acceptance: ≤ 2 pp).
+Largest difference: 0.26 pp (acceptance: ≤ 2 pp).
 
 | repeat | fold sizes | smallest joint cell per fold |
 |---|---|---|
-| `cv_fold_r0` | 444 / 443 / 443 / 443 / 442 | 5 / 5 / 5 / 4 / 5 |
-| `cv_fold_r1` | 443 / 443 / 443 / 443 / 443 | 4 / 5 / 5 / 5 / 5 |
-| `cv_fold_r2` | 444 / 443 / 442 / 443 / 443 | 5 / 5 / 4 / 5 / 5 |
+| `cv_fold_r0` | 444 / 443 / 443 / 442 / 443 | 5 / 5 / 5 / 4 / 5 |
+| `cv_fold_r1` | 443 / 444 / 443 / 442 / 443 | 5 / 4 / 5 / 5 / 5 |
+| `cv_fold_r2` | 444 / 443 / 443 / 443 / 442 | 5 / 5 / 5 / 5 / 4 |
 
 ## 3. Leakage checks (all must be 0)
 
 | check | count |
 |---|---|
 | partition: groups in >1 part | 0 |
-| partition: keys in >1 part | 0 |
+| partition: bare keys in >1 part | 0 |
 | partition: near-duplicate pairs across parts | 0 |
 | cv_fold_r0: groups in >1 part | 0 |
-| cv_fold_r0: keys in >1 part | 0 |
+| cv_fold_r0: bare keys in >1 part | 0 |
 | cv_fold_r0: near-duplicate pairs across parts | 0 |
 | cv_fold_r1: groups in >1 part | 0 |
-| cv_fold_r1: keys in >1 part | 0 |
+| cv_fold_r1: bare keys in >1 part | 0 |
 | cv_fold_r1: near-duplicate pairs across parts | 0 |
 | cv_fold_r2: groups in >1 part | 0 |
-| cv_fold_r2: keys in >1 part | 0 |
+| cv_fold_r2: bare keys in >1 part | 0 |
 | cv_fold_r2: near-duplicate pairs across parts | 0 |
 | test rows with a CV fold | 0 |
 | dev rows without a CV fold | 0 |
