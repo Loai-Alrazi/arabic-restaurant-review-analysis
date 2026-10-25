@@ -30,7 +30,8 @@ ASPECT_CUES = {
     "الجلسات": r"مكان|جلس|هادي|هادئ|اجواء|ديكور|نظاف|نظيف|زحم|مزدحم|ازعاج",
     "الاسعار": r"سعر|اسعار|غالي|رخيص|مبالغ|ريال|تكلف",
 }
-EMOJI_RE = re.compile("[\U0001f300-\U0001faff☀-➿]")
+# Pictographs, misc symbols and dingbats, and misc symbols and arrows (stars such as U+2B50).
+EMOJI_RE = re.compile("[\U0001f300-\U0001faff☀-➿⬀-⯿]")
 TOKEN_RE = r"(?u)\b\w+\b"
 
 
@@ -38,8 +39,8 @@ def _tokens(text: str) -> list[str]:
     return re.findall(TOKEN_RE, normalize(text, **FULL))
 
 
-def _has_negation(text: str) -> bool:
-    return any(t in NEGATIONS for t in _tokens(text))
+def _has_negation(text: str, forms: frozenset[str] = NEGATIONS) -> bool:
+    return any(t in forms for t in _tokens(text))
 
 
 def _md_table(frame: pd.DataFrame, fmt: str = "{}") -> list[str]:
@@ -116,12 +117,18 @@ def _figures(dev: pd.DataFrame) -> list[str]:
 def run_eda(figures: bool = True) -> str:
     dev = load_dev()
     dev = dev.assign(chars=dev.text.str.len(), words=dev.text.str.split().str.len(),
-                     negation=dev.text.map(_has_negation), emoji=dev.text.str.contains(EMOJI_RE))
+                     negation=dev.text.map(_has_negation),
+                     negation_no_ma=dev.text.map(lambda t: _has_negation(t, NEGATIONS - {"ما"})),
+                     emoji=dev.text.str.contains(EMOJI_RE))
     out = [
         "# Exploratory data analysis — development partition only",
         "",
         "Written by `python -m arabic_reviews eda` from `split.load_dev()`; the held-out test partition is"
         " not read. Counts are rows of the dev partition.",
+        "",
+        "Missing values, exact and normalised duplicates and label conflicts are reported for the whole"
+        " validated file in [`data_quality.md`](data_quality.md); near-duplicate grouping and the partition"
+        " balance in [`split.md`](split.md).",
         "",
         f"Rows: **{len(dev)}**, near-duplicate groups: {dev.group_id.nunique()}.",
         "",
@@ -147,17 +154,21 @@ def run_eda(figures: bool = True) -> str:
         out += _md_table(table, "{:g}") + [""]
     out += [f"Reviews with at most 3 words: {(dev.words <= 3).mean() * 100:.1f}% of dev.", "",
             "## 3. Negation and emoji by sentiment", ""]
-    rates = dev.groupby("sentiment")[["negation", "emoji"]].mean().loc[list(config.SENTIMENTS)] * 100
-    rates.columns = ["% with a negation particle", "% with an emoji"]
+    rates = dev.groupby("sentiment")[["negation", "negation_no_ma", "emoji"]].mean().loc[list(config.SENTIMENTS)] * 100
+    rates.columns = ["% with a negation particle", "% with a negation particle other than ما", "% with an emoji"]
     out += _md_table(rates, "{:.1f}")
     out += ["", f"Negation particles: `text.NEGATIONS` ({len(NEGATIONS)} forms), matched as whole tokens after"
-            " full normalisation.", "", "## 4. Most distinctive word 1–2-grams per class (chi², one-vs-rest)", "",
+            " full normalisation. `ما` is counted as a negation in the first column although it also has"
+            " non-negating uses (ما شاء الله, exclamative ما احلى), so that column overstates negation; the"
+            " second column leaves `ما` out.", "",
+            "## 4. Most distinctive word 1–2-grams per class (chi², one-vs-rest)", "",
             "Fitted on the dev partition for description only; model features are fitted inside each CV fold.", ""]
+    grams = {}
     for task in ("sentiment", "aspect"):
-        grams = distinctive_ngrams(dev.text, dev[task])
+        grams[task] = distinctive_ngrams(dev.text, dev[task])
         labels = config.SENTIMENTS if task == "sentiment" else config.ASPECTS
         out += [f"| {task} | top n-grams |", "|---|---|"]
-        out += [f"| {lab} | {'، '.join(grams[lab])} |" for lab in labels] + [""]
+        out += [f"| {lab} | {'، '.join(grams[task][lab])} |" for lab in labels] + [""]
     m = multi_aspect_estimate(dev)
     out += [
         "## 5. How often does a review mention more than one aspect?",
@@ -181,7 +192,7 @@ def run_eda(figures: bool = True) -> str:
         for r in dev[dev.aspect == aspect].sort_values("rid").head(2).itertuples():
             out.append(f"| {r.rid} | {r.aspect} | {r.sentiment} | {r.text.replace('|', '/').replace(chr(10), ' ')} |")
     out += ["", "## 7. Observations that inform M3", ""]
-    out += OBSERVATIONS
+    out += observations(dev, rates, grams, m)
     if figures:
         out += ["", "## Figures", ""] + [f"- `reports/{p}`" for p in _figures(dev)]
     text = "\n".join(out) + "\n"
@@ -189,27 +200,60 @@ def run_eda(figures: bool = True) -> str:
     return text
 
 
-# Written after reading the tables above; kept in code so the report stays reproducible.
-OBSERVATIONS = [
-    "- **Neutral is rare (9.2%) and lexically hedged**: its distinctive terms are concessive or lukewarm"
-    " words (جيد، بس، عادي، مقبول، لكن/لاكن، «جيد لكن»). This supports Macro-F1 as the primary metric, the"
-    " class-weight axis and word bigrams. Some neutral rows read as negative (rid 22), matching the label"
-    " noise noted in `docs/PROBLEM_FRAMING.md`; neutral recall will be the weakest point to watch.",
-    "- **Negation carries sentiment signal**: a negation particle appears in 32.4% of negative and 27.1% of"
-    " neutral reviews against 8.9% of positive ones (غير is among the top negative terms). Negations must"
-    " survive preprocessing; stop-word removal is measured, not assumed.",
-    "- **Aspect cues are lexical but split by clitics and spelling**: الدونات/دونات/والدونات, قهوه/القهوه/قهوتهم,"
-    " اسعار/الاسعار/اسعاره. Character n-grams (`char_wb`) or a word+character union are the expected way to"
-    " share evidence across these forms; this is the first ablation axis.",
-    "- **Reviews are short**: median 5–8 words, and 19.8% have at most 3 words. Negative and neutral reviews"
-    " are longer than positive ones (median 8 and 7 vs 5 words), so length is a candidate simple feature"
-    " for sentiment (axis 5), to be kept only if it helps under the acceptance rule.",
-    "- **Emoji lean positive** (7.4% of positive vs 4.0% negative and 2.5% neutral reviews): emoji are kept"
-    " as tokens in the symbols axis rather than stripped by default.",
-    "- **Aspect and sentiment are correlated**: service and prices are mostly negative, drinks, food and"
-    " seating mostly positive. The two tasks stay separate models; the joint-correct rate is reported as a"
-    " secondary metric.",
-    "- **Single-label limitation is real but limited**: about 9.8% of reviews mention two or more aspects by"
-    " the cue estimate, and the labelled aspect is almost always one of them (97.2%). Multi-aspect reviews"
-    " are therefore expected to explain only part of the aspect errors; error analysis in M4 will count them.",
-]
+# Written after reading the tables above; every number is formatted from the computed values and the
+# qualitative claims (directions, cited terms, cited rid) are checked in tests/test_eda.py.
+NEUTRAL_EXAMPLE_RID = 22
+ASPECT_FORM_EXAMPLES = [["الدونات", "دونات", "والدونات"], ["قهوه", "القهوه", "قهوتهم"], ["اسعار", "الاسعار", "اسعاره"]]
+
+
+def _share_phrase(dev: pd.DataFrame) -> str:
+    """Name each aspect's largest sentiment class and whether it is a majority or only a plurality."""
+    shares = pd.crosstab(dev.aspect, dev.sentiment, normalize="index").loc[list(config.ASPECTS)] * 100
+    parts = []
+    for label in config.SENTIMENTS:
+        tops = [a for a in config.ASPECTS if shares.loc[a].idxmax() == label]
+        if not tops:
+            continue
+        kind = "majority" if all(shares.loc[a, label] > 50 for a in tops) else "largest class"
+        detail = ", ".join(f"{a} {shares.loc[a, label]:.1f}%" for a in tops)
+        runner = [f"{a}: {shares.loc[a].drop(label).idxmax()} {shares.loc[a].drop(label).max():.1f}%"
+                  for a in tops if shares.loc[a, label] <= 50]
+        parts.append(f"{label} is the {kind} for {detail}"
+                     + (f" (not a majority; runner-up {', '.join(runner)})" if runner else ""))
+    return "; ".join(parts)
+
+
+def observations(dev: pd.DataFrame, rates: pd.DataFrame, grams: dict, m: dict) -> list[str]:
+    pos, neg, neu = config.SENTIMENTS
+    words = dev.groupby("sentiment").words.median()
+    neg_terms = [t for t in grams["sentiment"][neg] if t in NEGATIONS]
+    return [
+        f"- **Neutral is rare ({(dev.sentiment == neu).mean() * 100:.1f}%) and lexically hedged**: its most"
+        f" distinctive terms are concessive or lukewarm words ({'، '.join(grams['sentiment'][neu])}). This"
+        " supports Macro-F1 as the primary metric, the class-weight axis and word bigrams. Some neutral rows"
+        f" read as negative (rid {NEUTRAL_EXAMPLE_RID}), matching the label noise noted in"
+        " `docs/PROBLEM_FRAMING.md`; neutral recall will be the weakest point to watch.",
+        f"- **Negation carries sentiment signal**: a negation particle appears in {rates.iloc[1, 0]:.1f}% of"
+        f" negative and {rates.iloc[2, 0]:.1f}% of neutral reviews against {rates.iloc[0, 0]:.1f}% of positive"
+        f" ones ({rates.iloc[1, 1]:.1f}% / {rates.iloc[2, 1]:.1f}% / {rates.iloc[0, 1]:.1f}% without `ما`)"
+        + (f"; {'، '.join(neg_terms)} is among the top negative terms" if neg_terms else "")
+        + ". Negations must survive preprocessing; stop-word removal is measured, not assumed.",
+        "- **Aspect cues are lexical but split by clitics and spelling**: "
+        + ", ".join("/".join(forms) for forms in ASPECT_FORM_EXAMPLES)
+        + ". Character n-grams (`char_wb`) or a word+character union are the expected way to share evidence"
+        " across these forms; this is the first ablation axis.",
+        f"- **Reviews are short**: median {words.min():g}–{words.max():g} words by sentiment, and"
+        f" {(dev.words <= 3).mean() * 100:.1f}% have at most 3 words. Negative and neutral reviews are longer"
+        f" than positive ones (median {words[neg]:g} and {words[neu]:g} vs {words[pos]:g} words), so length is a"
+        " candidate simple feature for sentiment (axis 5), to be kept only if it helps under the acceptance"
+        " rule.",
+        f"- **Emoji lean positive** ({rates.iloc[0, 2]:.1f}% of positive vs {rates.iloc[1, 2]:.1f}% negative and"
+        f" {rates.iloc[2, 2]:.1f}% neutral reviews): emoji are kept as tokens in the symbols axis rather than"
+        " stripped by default.",
+        f"- **Aspect and sentiment are correlated**: {_share_phrase(dev)}. The two tasks stay separate models;"
+        " the joint-correct rate is reported as a secondary metric.",
+        f"- **Single-label limitation is real but limited**: about {m['multi_cue_pct']:.1f}% of reviews mention"
+        " two or more aspects by the cue estimate, and the labelled aspect is almost always one of them"
+        f" ({m['multi_cue_label_among_cues_pct']:.1f}%). Multi-aspect reviews are therefore expected to explain"
+        " only part of the aspect errors; error analysis in M4 will count them.",
+    ]

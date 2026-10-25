@@ -39,3 +39,28 @@ def test_eda_counts_cover_exactly_the_dev_rows(tmp_path, monkeypatch):
     assert f"Rows: **{n_dev}**" in report
     totals_row = next(line for line in report.splitlines() if line.startswith("| total | "))
     assert totals_row.endswith(f"| {n_dev} |")
+
+
+def test_observation_claims_hold_on_the_dev_partition():
+    dev = eda.load_dev()
+    dev = dev.assign(words=dev.text.str.split().str.len())
+    pos, neg, neu = config.SENTIMENTS
+    sentiment_grams = eda.distinctive_ngrams(dev.text, dev.sentiment)
+    assert {"بس", "جيد", "عادي"} <= set(sentiment_grams[neu])
+    aspect_grams = {t for terms in eda.distinctive_ngrams(dev.text, dev.aspect).values() for t in terms}
+    assert {f for forms in eda.ASPECT_FORM_EXAMPLES for f in forms} <= aspect_grams
+    assert dev.set_index("rid").loc[eda.NEUTRAL_EXAMPLE_RID, "sentiment"] == neu
+    for forms in (eda.NEGATIONS, eda.NEGATIONS - {"ما"}):
+        rate = dev.text.map(lambda t: eda._has_negation(t, forms)).groupby(dev.sentiment).mean()
+        assert rate[neg] > rate[pos] and rate[neu] > rate[pos]
+    emoji = dev.text.str.contains(eda.EMOJI_RE).groupby(dev.sentiment).mean()
+    assert emoji[pos] > emoji[neg] and emoji[pos] > emoji[neu]
+    words = dev.groupby("sentiment").words.median()
+    assert words[neg] > words[pos] and words[neu] > words[pos]
+    m = eda.multi_aspect_estimate(dev)
+    assert m["multi_cue_pct"] < 20 and m["multi_cue_label_among_cues_pct"] > 90
+
+
+def test_emoji_pattern_covers_stars_and_dingbats():
+    assert all(eda.EMOJI_RE.search(c) for c in ["⭐", "❤", "☕", "\U0001f60d"])
+    assert not eda.EMOJI_RE.search("قهوة 10/10 !")
