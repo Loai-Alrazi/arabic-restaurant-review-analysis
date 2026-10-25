@@ -191,6 +191,7 @@ class ValidationResult:
     logs: dict
     profile_raw: dict
     profile_validated: dict
+    repaired_texts: pd.Series  # rid -> repaired text of every record entering deduplication
 
 
 def _majority(labels: list[str]) -> str | None:
@@ -273,6 +274,7 @@ def run_validation(raw: pd.DataFrame, expected_rows: int = config.EXPECTED_ROWS)
 
     # 5. Duplicates on the aggressive key: one representative (lowest rid) per group,
     #    per-task majority label; a tie in either task excludes the whole group.
+    repaired = df.set_index("rid").text
     df = df.assign(key=df.text.map(dedup_key))
     rows, copies, ties = [], [], []
     for _, grp in df.groupby("key", sort=False):
@@ -316,19 +318,19 @@ def run_validation(raw: pd.DataFrame, expected_rows: int = config.EXPECTED_ROWS)
         .reset_index(drop=True)
     )
 
-    check_integrity(data, source, logs)
+    check_integrity(data, source, logs, repaired)
     lineage = {
         "raw_rows": int(len(source)),
         "validated_rows": int(len(data)),
         "excluded_by_reason": {k: len(v) for k, v in logs["excluded_rids"].items()},
         "steps": steps,
     }
-    return ValidationResult(data, lineage, logs, profile_raw, profile(data))
+    return ValidationResult(data, lineage, logs, profile_raw, profile(data), repaired)
 
 
-def check_integrity(data: pd.DataFrame, source: pd.DataFrame, logs: dict) -> None:
-    """Hard guarantees on the validated data, recomputed from the source labels;
-    any violation aborts the run."""
+def check_integrity(data: pd.DataFrame, source: pd.DataFrame, logs: dict, repaired: pd.Series) -> None:
+    """Hard guarantees on the validated data, recomputed from the source labels and
+    the repaired texts (``rid -> text`` before deduplication); any violation aborts."""
     kept = data.rid.tolist()
     if len(set(kept)) != len(kept):
         raise AssertionError("duplicate rids in validated data")
@@ -339,6 +341,17 @@ def check_integrity(data: pd.DataFrame, source: pd.DataFrame, logs: dict) -> Non
         raise AssertionError("kept + excluded records do not partition the source")
 
     src = source.set_index("rid")
+    # Duplicate groups and their outcome are recomputed, not trusted from the log.
+    keys = repaired.map(dedup_key)
+    recomputed = {tuple(sorted(g.index)) for _, g in keys.groupby(keys) if len(g) > 1}
+    if recomputed != {tuple(g["rids"]) for g in logs["duplicate_groups"]}:
+        raise AssertionError("logged duplicate groups differ from groups recomputed on the repaired texts")
+    if set(logs["excluded_rids"]["no_arabic_text"]) != set(src.index) - set(repaired.index):
+        raise AssertionError("no-Arabic exclusions differ from the records missing before deduplication")
+    for g in logs["duplicate_groups"]:
+        tie = any(_majority(src.loc[g["rids"], task].tolist()) is None for task in TASKS)
+        if tie != (g["outcome"] == "excluded_label_tie"):
+            raise AssertionError(f"group {g['rids']}: outcome does not match its labels")
     groups = {g["rids"][0]: g["rids"] for g in logs["duplicate_groups"] if g["outcome"] == "kept_representative"}
     resolutions = {(r["rid"], r["task"]): r for r in logs["label_resolutions"]}
     for row in data.itertuples():
@@ -352,10 +365,16 @@ def check_integrity(data: pd.DataFrame, source: pd.DataFrame, logs: dict) -> Non
             changed = expected != src.at[row.rid, task]
             if changed != ((row.rid, task) in resolutions):
                 raise AssertionError(f"rid {row.rid}: {task} label change not logged exactly")
+            if changed and resolutions[(row.rid, task)] != {
+                "rid": row.rid, "task": task, "source": src.at[row.rid, task], "resolved": expected, "group_rids": group
+            }:
+                raise AssertionError(f"rid {row.rid}: {task} resolution record is inconsistent")
     if len(resolutions) != len(logs["label_resolutions"]) or any(rid not in groups for rid, _ in resolutions):
         raise AssertionError("label resolution logged for a record that is not a kept group representative")
 
-    residual = data.text.map(lambda t: bool(LABEL_SUFFIX_RE.search(t) or LABEL_SCAN_RE.search(t)))
+    # The broader LABEL_SCAN_RE also matches natural prose ("رأيي: الخدمة"), so it is
+    # reported in the quality profile rather than enforced here.
+    residual = data.text.map(lambda t: bool(LABEL_SUFFIX_RE.search(t)))
     if residual.any():
         raise AssertionError(f"embedded label strings remain in rids {data.rid[residual].tolist()}")
     if data.text.map(dedup_key).duplicated().any():

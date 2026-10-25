@@ -19,5 +19,11 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
           pip install -e . --no-deps
+      - name: Fetch and verify the source file (CC-BY-4.0, checksum-verified)
+        run: python -m arabic_reviews ingest
+      - name: Regenerated validation reports must match the committed ones byte for byte
+        run: |
+          python -m arabic_reviews validate
+          git diff --exit-code -- reports/
       - name: Run tests
         run: pytest -q

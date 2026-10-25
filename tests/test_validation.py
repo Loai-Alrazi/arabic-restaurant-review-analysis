@@ -126,13 +126,13 @@ def test_integrity_check_rejects_a_record_kept_twice(result):
     data = result.data.copy()
     data.loc[1, "rid"] = data.loc[0, "rid"]
     with pytest.raises(AssertionError):
-        check_integrity(data, _source(GOOD), result.logs)
+        check_integrity(data, _source(GOOD), result.logs, result.repaired_texts)
 
 
 def test_integrity_check_rejects_an_unlogged_label_change(result):
     data = _tamper(result, 0, "sentiment", "سلبي")
     with pytest.raises(AssertionError):
-        check_integrity(data, _source(GOOD), result.logs)
+        check_integrity(data, _source(GOOD), result.logs, result.repaired_texts)
 
 
 def test_integrity_check_rejects_a_logged_change_that_is_not_the_majority(result):
@@ -141,12 +141,12 @@ def test_integrity_check_rejects_a_logged_change_that_is_not_the_majority(result
         {"rid": 0, "task": "sentiment", "source": "ايجابي", "resolved": "سلبي", "group_rids": [0]}
     ])
     with pytest.raises(AssertionError):
-        check_integrity(data, _source(GOOD), logs)
+        check_integrity(data, _source(GOOD), logs, result.repaired_texts)
 
 
 def test_integrity_check_rejects_a_silently_dropped_record(result):
     with pytest.raises(AssertionError):
-        check_integrity(result.data.iloc[1:], _source(GOOD), result.logs)
+        check_integrity(result.data.iloc[1:], _source(GOOD), result.logs, result.repaired_texts)
 
 
 def test_written_outputs_are_byte_identical_across_runs(tmp_path):
@@ -157,3 +157,21 @@ def test_written_outputs_are_byte_identical_across_runs(tmp_path):
         hashes.append(write_outputs(out, "0" * 64, d / "validated.csv", d / "lineage.json", d / "quality.md"))
     assert hashes[0] == hashes[1]
     assert b"\r\n" not in (tmp_path / "a" / "lineage.json").read_bytes()
+
+
+def test_integrity_check_rejects_a_fabricated_duplicate_group(result):
+    # rids 0 and 1 are different reviews; logging them as one group must be caught.
+    data = result.data[result.data.rid != 1].copy()
+    data.loc[data.rid == 0, "dup_group_size"] = 2
+    logs = dict(result.logs)
+    logs["duplicate_groups"] = logs["duplicate_groups"] + [
+        {"rids": [0, 1], "aspect_votes": {}, "sentiment_votes": {}, "outcome": "kept_representative"}
+    ]
+    logs["excluded_rids"] = dict(logs["excluded_rids"], duplicate_copy=logs["excluded_rids"]["duplicate_copy"] + [1])
+    with pytest.raises(AssertionError, match="recomputed"):
+        check_integrity(data, _source(GOOD), logs, result.repaired_texts)
+
+
+def test_natural_colon_prose_passes_validation_unchanged():
+    out = run_validation(_raw([("رأيي باختصار: الخدمة", "الخدمة", "ايجابي")]), expected_rows=1)
+    assert out.data.text.tolist() == ["رأيي باختصار: الخدمة"]
