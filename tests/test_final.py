@@ -150,7 +150,7 @@ def toy_world(tmp_path, monkeypatch):
     for name, path in [("DEV_FILE", "dev.csv"), ("SPLIT_FILE", "split.csv"), ("TEST_FILE", "test.csv")]:
         monkeypatch.setattr(config, name, tmp_path / path)
     for mod, name, path in [(protocol, "PROTOCOL_JSON", "protocol.json"), (protocol, "PROTOCOL_MD", "protocol.md"),
-                            (final, "ACCESS_LOG", "access.json"), (final, "LOCAL_ACCESS_LOG", "local/access.json"),
+                            (final, "ACCESS_LOG", "access.json"), (final, "LOCAL_ACCESS_LOG", "local/access.json"), (final, "LOCAL_DIGESTS", "local/digests.json"),
                             (final, "LOCK_FILE", "scratch/final.lock"), (final, "FINAL_JSON", "final_test.json"),
                             (final, "FINAL_MD", "final_test.md"), (final, "MODELS_DIR", "models"),
                             (final, "SCRATCH_DIR", "scratch")]:
@@ -172,6 +172,8 @@ def test_final_run_end_to_end_on_toy_data(toy_world, monkeypatch):
     monkeypatch.setattr(config, "TEST_FILE", tmp / "missing.csv")  # any read would fail
     checked = final.run_final(check_only=True)  # verifies, fits and saves the models, never opens the test
     assert checked["test_read"] is False and not (tmp / "access.json").exists()
+    assert checked["digests_unchanged"] is None and (tmp / "local" / "digests.json").exists()
+    assert final.run_final(check_only=True)["digests_unchanged"] is True  # a rebuild reproduces the same models
     assert (tmp / "models" / "sentiment.joblib").exists() and not (tmp / "models" / "model_card.json").exists()
     with pytest.raises(ValueError):
         final.run_final("reason", check_only=True)
