@@ -165,10 +165,14 @@ def _task_result(pipeline, text: str, spec: dict) -> TaskResult:
     )
 
 
-def predict(text: str) -> Prediction:
-    """Score one review. Raises ``InvalidReview`` for input outside the accepted range."""
+def predict(text: str, models: dict | None = None) -> Prediction:
+    """Score one review. Raises ``InvalidReview`` for input outside the accepted range.
+
+    ``models`` maps each task to a fitted pipeline of the saved configuration; by default the saved
+    pipelines are loaded. Thresholds and notes always come from the model card."""
     text = check_review(text)
-    card, models = model_card(), load_models()
+    card = model_card()
+    models = load_models() if models is None else models
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
         if any(pipeline[:-1].transform([text]).nnz == 0 for pipeline in models.values()):
