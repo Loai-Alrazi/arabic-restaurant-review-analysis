@@ -1,0 +1,12 @@
+{
+ "versions": {
+  "scikit-learn": "1.8.0",
+  "numpy": "2.5.4",
+  "pandas": "2.3.3",
+  "joblib": "1.6.0"
+ },
+ "digests": {
+  "sentiment": "777923f3f6e1e156951d07a5b70b33c21dfbacc36d81501f36b0629f3f6723f5",
+  "aspect": "2bfd1cc39f938c99076e6cc7a3689656c57e7f33bbb95b424c7f1353e9ac814c"
+ }
+}
