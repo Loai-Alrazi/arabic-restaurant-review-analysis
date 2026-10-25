@@ -1,0 +1,6 @@
+# The project requirements plus the tools to open and run notebooks/project_walkthrough.ipynb
+# (verified on Python 3.12, Windows 10, CPU only).
+-r requirements.txt
+jupyterlab==4.6.4
+ipykernel==7.4.0
+nbconvert==7.17.2
