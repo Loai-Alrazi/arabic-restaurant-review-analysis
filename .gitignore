@@ -1,0 +1,31 @@
+# --- Course material (not redistributable) ---
+*.pdf
+
+# --- Data: fetched from the DOI by script and verified by checksum; not redistributed ---
+data/raw/
+data/interim/
+data/processed/
+
+# --- Reproducible model artifacts ---
+models/*.joblib
+models/*.pkl
+
+# --- Local working files ---
+.local/
+
+# --- Python / tooling ---
+.venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.ipynb_checkpoints/
+.streamlit/secrets.toml
+.coverage
+htmlcov/
+
+# --- OS / editor ---
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
