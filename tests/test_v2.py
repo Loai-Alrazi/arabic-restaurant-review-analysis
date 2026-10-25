@@ -173,3 +173,17 @@ def test_end_to_end_on_toy_data(tmp_path, monkeypatch):
     assert len(log) == 11 and log.exp_id.is_unique  # 4 candidates x 2 schemes, procedure, aspect x 2
     again = v2.run_experiments(toy_dev(), check_v1=False)  # logged rows are checked, not appended
     assert len(v2.read_log()) == 11 and again["selection"]["chosen"] == r["selection"]["chosen"]
+
+
+def test_released_rule_never_widens_a_version_1_level():
+    rng = np.random.default_rng(2)
+    f = pd.concat([_rows(rng.uniform(0.40, 0.95, 400), rng.random(400) < 0.97, POS, 0),
+                   _rows(rng.uniform(0.60, 0.95, 300), rng.random(300) < 0.80, NEG, 1000)], ignore_index=True)
+    args = (f.score.to_numpy(), f.pred.to_numpy(), f.correct.to_numpy(), f.group.to_numpy(), L)
+    free = v2.class_thresholds(*args)
+    kept = v2.class_thresholds(*args, floor={"high": 0.60, "medium": 0.50})
+    assert free[POS]["high"] < 0.60 and kept[POS]["high"] == 0.60  # registered rule widens, released rule does not
+    assert kept[NEG]["high"] is None or kept[NEG]["high"] > 0.60  # 80% right: high is raised or removed
+    for label in L:
+        for level in ("high", "medium"):
+            assert kept[label][level] is None or kept[label][level] >= {"high": 0.60, "medium": 0.50}[level]

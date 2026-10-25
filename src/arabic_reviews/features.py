@@ -19,7 +19,8 @@ from .cues import PolarityCues
 
 NORMALIZERS = {"none": {}, "light": text.LIGHT, "full": text.FULL}
 LINEAR_MODELS = ("logreg", "linsvm", "cnb")
-REPRESENTATIONS = ("word11", "word12", "char25", "word11+char25", "word12+char25")
+REPRESENTATIONS = ("word11", "word12", "char25", "word11+char25")
+V2_REPRESENTATIONS = ("word12+char25",)  # version-2 candidate only (docs/V2_PLAN.md)
 
 
 class Normalizer(BaseEstimator, TransformerMixin):
@@ -83,7 +84,7 @@ def _vectorizer(kind: str, symbol_tokens: bool = False, tfidf: dict | None = Non
 
 
 def _features(representation: str, symbol_tokens: bool = False, tfidf: dict | None = None):
-    if representation not in REPRESENTATIONS:
+    if representation not in REPRESENTATIONS + V2_REPRESENTATIONS:
         raise ValueError(f"unknown representation: {representation}")
     parts = representation.split("+")
     if len(parts) == 1:

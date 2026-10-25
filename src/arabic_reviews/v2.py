@@ -330,11 +330,13 @@ def _level_holds(score, correct, groups, inside, t, target) -> bool:
 
 
 def class_thresholds(score: np.ndarray, pred: np.ndarray, correct: np.ndarray, groups: np.ndarray,
-                     labels: list[str]) -> dict[str, dict[str, float | None]]:
+                     labels: list[str], floor: dict[str, float] | None = None) -> dict[str, dict[str, float | None]]:
     """Per predicted class: "high" from the smallest grid value t whose tail (score >= t) is right at
     least 90% of the time over >= 30 distinct groups, and whose lower edge [t, t + 0.10) is right at
     least 85% of the time when it holds >= 30 groups; "medium" likewise for [t, high) with 70% / 65%.
-    A level that no grid value supports is None (not shown for that class)."""
+    A level that no grid value supports is None (not shown for that class). With ``floor`` (the
+    version-1 thresholds) no level may start below its version-1 threshold: levels can only be
+    raised or removed per class, never widened (the released rule, plan section 9)."""
     out = {}
     for label in labels:
         own = pred == label
@@ -343,6 +345,8 @@ def class_thresholds(score: np.ndarray, pred: np.ndarray, correct: np.ndarray, g
         for level, target in TARGETS:
             found[level] = None
             for t in GRID:
+                if floor is not None and t + EPS < floor[level]:
+                    continue
                 if t >= upper:
                     break
                 inside = own & (score + EPS >= t) & (score + EPS < upper)
@@ -590,24 +594,30 @@ def run_experiments(dev: pd.DataFrame | None = None, check_v1: bool = True) -> d
         for task, s_sel, s_out, spec, labels in (("sentiment", sel, out, final_spec, LABELS),
                                                  ("aspect", sel_aspect, out_aspect, aspect_spec, ASPECT_LABELS)):
             score, pred, correct, grp = _pooled(s_sel, spec)
-            proposed = class_thresholds(score, pred, correct, grp, labels)
             o_score, o_pred, o_correct, o_grp = _pooled(s_out, spec)
-            check = level_table(o_score, o_pred, o_correct, o_grp, proposed, labels)
-            used, dropped = apply_drop_rule(proposed, check)
             v1_thresholds = protocol_thresholds(task)
-            v1_levels = {label: {"high": v1_thresholds["high"], "medium": v1_thresholds["medium"]} for label in labels}
+            v1_levels = {label: dict(v1_thresholds) for label in labels}
+            rules = {}
+            for rule, floor in (("registered", None), ("released", v1_thresholds)):
+                proposed = class_thresholds(score, pred, correct, grp, labels, floor)
+                used, dropped = apply_drop_rule(proposed, level_table(o_score, o_pred, o_correct, o_grp, proposed, labels))
+                rules[rule] = dict(proposed=proposed, thresholds=used, dropped=dropped,
+                                   selection_levels=level_table(score, pred, correct, grp, used, labels),
+                                   outer_levels=level_table(o_score, o_pred, o_correct, o_grp, used, labels))
             certainty[task] = dict(
-                proposed=proposed, thresholds=used, dropped=dropped,
-                selection_levels=level_table(score, pred, correct, grp, used, labels),
-                outer_levels=level_table(o_score, o_pred, o_correct, o_grp, used, labels),
-                v1_rule_selection_levels=level_table(score, pred, correct, grp, v1_levels, labels))
+                rules, thresholds=rules["released"]["thresholds"], outer_levels=rules["released"]["outer_levels"],
+                v1_thresholds=v1_thresholds,
+                v1_rule_selection_levels=level_table(score, pred, correct, grp, v1_levels, labels),
+                v1_rule_outer_levels=level_table(o_score, o_pred, o_correct, o_grp, v1_levels, labels))
 
         # calibration (section 6) and diagnosis (section 2)
         y_rep = np.tile(sel.y, len(SELECTION))
         calib = {name: calibration(np.vstack(sel.proba(specs[name])), y_rep, LABELS) for name in dict.fromkeys(["V1", final_name])}
         v1_rule = {label: protocol_thresholds("sentiment") for label in LABELS}
-        probes = probe_predictions(dev, {"V1, version-1 rule": (specs["V1"], v1_rule),
-                                         f"{final_name}, version-2 rule": (final_spec, certainty["sentiment"]["thresholds"])})
+        probes = probe_predictions(dev, {
+            "V1, version-1 rule": (specs["V1"], v1_rule),
+            f"{final_name}, registered per-class rule": (final_spec, certainty["sentiment"]["registered"]["thresholds"]),
+            f"{final_name}, released rule": (final_spec, certainty["sentiment"]["thresholds"])})
         result = dict(
             plan="docs/V2_PLAN.md", cues_sha256=cue_sha, git_sha=experiments._git_sha(),
             dev=dict(rows=len(dev), sha256=file_sha256(config.DEV_FILE) if real else "toy",
@@ -768,25 +778,39 @@ def results_markdown(r: dict) -> str:
     lines += ["", "Joint accuracy (sentiment and aspect both right; aspect = the version-1 model): "
               + "; ".join(f"{name}: selection {v['selection']:.4f}, outer {v['outer']:.4f}" for name, v in r["joint_accuracy"].items())
               + ".", "", "## 4. Certainty levels per predicted class", "",
-              "Score = the top class probability. Per predicted class, from the pooled out-of-fold predictions of the "
-              "selection folds (support counted in distinct near-duplicate groups): high starts at the smallest value t "
-              "on the grid 0.30, 0.35, ..., 0.95 whose tail (score >= t) is right >= 90% of the time over >= 30 groups "
-              "and whose lower edge [t, t + 0.10) is right >= 85% of the time when it holds >= 30 groups; medium "
-              "likewise for [t, high) with 70% / 65%. A dash means the level does not exist for that class. A level "
-              "whose accuracy on the outer folds falls more than 0.05 below its target is merged into the next lower one.", ""]
+              "Score = the top class probability of the released model. Per predicted class, from the pooled "
+              "out-of-fold predictions of the selection folds (support counted in distinct near-duplicate groups): high "
+              "starts at the smallest value t on the grid 0.30, 0.35, ..., 0.95 whose tail (score >= t) is right >= 90% "
+              "of the time over >= 30 groups and whose lower edge [t, t + 0.10) is right >= 85% of the time when it holds "
+              ">= 30 groups; medium likewise for [t, high) with 70% / 65%. A dash means the level does not exist for that "
+              "class. A level whose accuracy on the outer folds falls more than 0.05 below its target is merged into the "
+              "next lower one.", "",
+              "**Released rule (plan section 9, decided after the registered rule's results were seen):** the same search, "
+              "but no level may start below its version-1 threshold, so a level can only be raised or removed for a class, "
+              "never widened. The registered rule widened high for the largest classes (for example positive from 0.60 to "
+              "0.45), which in turn showed high certainty on hand-written descriptive sentences (section 6); the aim was "
+              "to stop over-claiming, so the release keeps the stricter variant. Both are reported.", ""]
     for task in ("sentiment", "aspect"):
         c = r["certainty"][task]
         labels = L if task == "sentiment" else ASPECT_LABELS
-        lines += [f"### {task}", "", "| predicted | high from | medium from |", "|---|---|---|"]
+        reg = c["registered"]
+        lines += [f"### {task}", "", f"Version-1 thresholds (one pair for every class): high {c['v1_thresholds']['high']:.2f}, "
+                  f"medium {c['v1_thresholds']['medium']:.2f}.", "",
+                  "| predicted | released: high from | released: medium from | registered: high from | registered: medium from |",
+                  "|---|---|---|---|---|"]
         for label in labels:
-            t = c["thresholds"][label]
-            lines.append(f"| {label} | {_f(t['high'], 2)} | {_f(t['medium'], 2)} |")
-        lines += ["", f"Dropped by the outer-fold check: {', '.join(c['dropped']) or 'none'}.", "",
-                  "| predicted | level | selection rows (groups) | selection accuracy | outer rows (groups) | outer accuracy |"
-                  " v1 rule: selection rows | v1 rule: accuracy |", "|---|---|---|---|---|---|---|---|"]
-        for a, b, v in zip(c["selection_levels"], c["outer_levels"], c["v1_rule_selection_levels"]):
+            t, g = c["thresholds"][label], reg["thresholds"][label]
+            lines.append(f"| {label} | {_f(t['high'], 2)} | {_f(t['medium'], 2)} | {_f(g['high'], 2)} | {_f(g['medium'], 2)} |")
+        lines += ["", f"Dropped by the outer-fold check: released {', '.join(c['released']['dropped']) or 'none'}; "
+                  f"registered {', '.join(reg['dropped']) or 'none'}.", "",
+                  "| predicted | level | released: selection rows (groups) | accuracy | released: outer rows (groups) | accuracy "
+                  "| v1 rule: outer rows | accuracy | registered: outer rows | accuracy |",
+                  "|---|---|---|---|---|---|---|---|---|---|"]
+        for a, b, v, g in zip(c["released"]["selection_levels"], c["released"]["outer_levels"], c["v1_rule_outer_levels"],
+                              reg["outer_levels"]):
             lines.append(f"| {a['label']} | {a['level']} | {a['rows']} ({a['groups']}) | {_f(a['accuracy'])} | "
-                         f"{b['rows']} ({b['groups']}) | {_f(b['accuracy'])} | {v['rows']} | {_f(v['accuracy'])} |")
+                         f"{b['rows']} ({b['groups']}) | {_f(b['accuracy'])} | {v['rows']} | {_f(v['accuracy'])} | "
+                         f"{g['rows']} | {_f(g['accuracy'])} |")
         lines.append("")
     lines += ["## 5. Calibration (selection folds, pooled)", "",
               "The interface never shows probabilities; this section explains why the levels are read from measured "
@@ -797,7 +821,7 @@ def results_markdown(r: dict) -> str:
         lines.append(f"| {name} | {c['ece']:.3f} | {c['gap']:+.3f} | {c['brier']:.3f} | {c['mean_top']:.3f} | {c['accuracy']:.3f} |")
     lines += ["", "## 6. Hand-written challenge sentences (qualitative only)", "",
               "Written for this check, not taken from the data and without ground truth; models fitted on the whole "
-              "development partition, level by the version-2 rule.", "",
+              "development partition; the level by each rule.", "",
               "| sentence | listed cue | " + " | ".join(r["probes"][0]["models"]) + " |",
               "|---|---|" + "---|" * len(r["probes"][0]["models"])]
     for row in r["probes"]:
@@ -850,6 +874,12 @@ def build() -> dict:
             model = build_pipeline(spec).fit(X, dev[experiments.TASKS[task]].to_numpy())
             joblib.dump(model, MODELS_DIR / f"{task}.joblib")
             digests[task] = final.dev_digest(model, X)
+        recorded = json.loads(final.DIGESTS_FILE.read_text(encoding="utf-8"))
+        same_versions = recorded["versions"] == final.runtime_versions()
+        for task in specs:
+            same_model = task == "aspect" or r["released"] == "V1"
+            if same_model and same_versions and digests[task] != recorded["digests"][task]:
+                raise RuntimeError(f"the version-2 {task} model should equal the version-1 one but its digest differs")
         card = model_card_v2(r, p, specs, digests, dev)
         CARD_FILE.write_text(json.dumps(card, ensure_ascii=False, indent=1) + "\n", encoding="utf-8", newline="\n")
         return dict(fingerprint=p["fingerprint"], released=r["released"], digests=digests, inputs=sorted(opened))
