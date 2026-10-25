@@ -2,6 +2,7 @@
 predicted class (a level may not exist for a class) next to the unchanged version-1 card."""
 
 import json
+from pathlib import Path
 
 import pytest
 
@@ -60,6 +61,37 @@ def test_available_versions_need_card_and_models(with_v2):
 def test_unknown_version_is_refused(with_v2):
     with pytest.raises(ValueError):
         predict("القهوة ممتازة", version="v3")
+
+
+APP = str(Path(__file__).resolve().parents[1] / "app" / "streamlit_app.py")
+NO_LEVEL = "لا تُعرض ثقة مرتفعة أو متوسطة"
+
+
+def test_app_uses_version_2_when_its_card_and_models_exist(with_v2):
+    from streamlit.testing.v1 import AppTest
+
+    _write_v2_card(with_v2, {"ايجابي": {"high": None, "medium": None}, "سلبي": {"high": 0.0, "medium": 0.0}})
+    at = AppTest.from_file(APP, default_timeout=60).run()
+    assert not at.exception and at.session_state["version"] == "v2"
+    at.text_area[0].set_value("القهوة ممتازة والطعم رائع").run()
+    assert not at.exception
+    sentiment = [c.value for c in at.get_by_key("result-sentiment").caption]
+    assert any(NO_LEVEL in c and "إيجابي" in c for c in sentiment)  # the card gives this label no high or medium
+    assert not any(NO_LEVEL in c.value for c in at.get_by_key("result-aspect").caption)
+    assert "ما الذي يعمل في هذه الصفحة؟" in [h.value for h in at.header]
+
+
+def test_app_falls_back_to_version_1_without_a_version_2_card(tiny_models, monkeypatch):  # noqa: F811
+    from streamlit.testing.v1 import AppTest
+
+    monkeypatch.setattr(predict_module, "CARD_FILE_V2", tiny_models / "models" / "model_card_v2.json")  # absent
+    at = AppTest.from_file(APP, default_timeout=60).run()
+    assert not at.exception and at.session_state["version"] == "v1"
+    at.text_area[0].set_value("القهوة ممتازة والطعم رائع").run()
+    assert not at.exception and at.get_by_key("result")
+    assert not any(NO_LEVEL in c.value for c in at.caption)
+    assert "ما الذي يعمل في هذه الصفحة؟" not in [h.value for h in at.header]
+    assert any("v2-build" in m.value for m in at.markdown)  # the technical details say how to build version 2
 
 
 def test_thresholds_for_reads_either_card_layout():

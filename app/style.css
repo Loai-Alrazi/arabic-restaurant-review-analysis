@@ -29,12 +29,40 @@
   margin-right: 1.1em;
   padding-left: 0;
   padding-right: 0.25em;
+  text-align: right;
 }
 
 /* Table cells carry an inline left alignment, so this one rule needs !important. */
 [data-testid="stMain"] [data-testid="stTableStyledTable"] td,
 [data-testid="stMain"] [data-testid="stTableStyledTable"] th {
   text-align: right !important;
+}
+
+/* Header text is drawn at 60% of the text colour (about 4:1); this grey gives about 7:1. */
+[data-testid="stMain"] [data-testid="stTableStyledTable"] th {
+  color: #4b5557;
+}
+
+/* Version-2 level tables: cell values (ranges such as 97%–99%) never split across lines. They are
+   wider than a phone screen, so they scroll sideways there; the hint above them shows only on phones. */
+[class*="st-key-v2-levels-"] td,
+[class*="st-key-v2-levels-"] td [data-testid="stMarkdownContainer"],
+[class*="st-key-v2-levels-"] td p {
+  white-space: nowrap !important; /* the cell text sits in a markdown block that sets its own wrapping */
+}
+
+[class*="st-key-scroll-hint-"] {
+  display: none;
+}
+
+@media (max-width: 640px) {
+  [class*="st-key-scroll-hint-"] {
+    display: block;
+  }
+
+  [class*="st-key-v2-levels-"] table {
+    font-size: 0.85rem;
+  }
 }
 
 /* Commands, file names and identifiers stay left-to-right inside Arabic sentences. */

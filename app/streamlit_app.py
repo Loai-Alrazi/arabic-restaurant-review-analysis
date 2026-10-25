@@ -4,9 +4,10 @@ Run from the repository root (so .streamlit/config.toml applies):  streamlit run
 URL options: ?example=<key> fills one of EXAMPLES so its result shows on load; ?view=method opens
 the methodology tab.
 
-The page reaches the models only through ``get_card`` and ``run_prediction``. It applies no text
-transformation of its own and never shows a model score: certainty is shown as words, and every
-number in the methodology tab is read from the model card.
+The page uses version 2 when its model card and saved pipelines are present, otherwise version 1
+(decided once per session). It reaches the models only through ``get_card`` and ``run_prediction``,
+applies no text transformation of its own and never shows a model score: certainty is shown as words,
+and every number in the methodology tab is read from the model cards.
 """
 
 from __future__ import annotations
@@ -19,29 +20,37 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 import streamlit as st  # noqa: E402
 
-from arabic_reviews.predict import InvalidReview, MAX_CHARS, Prediction, TaskResult, model_card, predict  # noqa: E402
+from arabic_reviews.predict import (  # noqa: E402
+    InvalidReview, MAX_CHARS, Prediction, TaskResult, available_versions, model_card, predict, thresholds_for)
 
 APP_DIR = Path(__file__).resolve().parent
 
 # --------------------------------------------------------------------------- model versions
-# One adapter per call, so a second version can be added here without touching the page.
+# One adapter per call; the page itself only passes a version name around.
 
-VERSIONS = {"v1": "الإصدار 1"}
-DEFAULT_VERSION = "v1"
+VERSIONS = {"v1": "الإصدار 1", "v2": "الإصدار 2"}
+BUILD_COMMANDS = {"v1": "python -m arabic_reviews final --check", "v2": "python -m arabic_reviews v2-build"}
 
 
-def get_card(version: str = DEFAULT_VERSION) -> dict:
+def page_version() -> str:
+    """Version 2 when its card and saved pipelines are present, otherwise version 1; fixed for the session."""
+    if "version" not in st.session_state:
+        st.session_state["version"] = "v2" if "v2" in available_versions() else "v1"
+    return st.session_state["version"]
+
+
+def get_card(version: str) -> dict:
     """The model card of one version."""
-    if version == "v1":
-        return model_card()
-    raise ValueError(f"unknown model version: {version}")
+    if version not in VERSIONS:
+        raise ValueError(f"unknown model version: {version}")
+    return model_card(version)
 
 
-def run_prediction(text: str, version: str = DEFAULT_VERSION) -> Prediction:
+def run_prediction(text: str, version: str) -> Prediction:
     """Score one review; raises InvalidReview or FileNotFoundError exactly like ``predict``."""
-    if version == "v1":
-        return predict(text)
-    raise ValueError(f"unknown model version: {version}")
+    if version not in VERSIONS:
+        raise ValueError(f"unknown model version: {version}")
+    return predict(text, version=version)
 
 
 # --------------------------------------------------------------------------- page text
@@ -68,7 +77,7 @@ NOTES = {
     "very_short": "المراجعة قصيرة جدًا؛ النتيجة أقل ثباتًا.",
     "library_version": "إصدار المكتبة يختلف عن إصدار التدريب؛ أعد بناء النماذج.",
 }
-MISSING_MODELS = "النماذج المحفوظة غير موجودة. شغّل: `python -m arabic_reviews final --check`"
+MISSING_MODELS = "النماذج المحفوظة غير موجودة. شغّل: `{command}`"
 
 # Certainty words: they describe the model's own confidence, not the chance of being right.
 CERTAINTY = {
@@ -161,7 +170,13 @@ def review_edited() -> None:
 # --------------------------------------------------------------------------- result
 
 
-def render_task(title: str, task: TaskResult, kind: str) -> None:
+def no_confident_level(spec: dict, label: str) -> bool:
+    """True when the card gives this predicted label neither a high nor a medium level (version 2)."""
+    thresholds = thresholds_for(spec, label)
+    return thresholds.get("high") is None and thresholds.get("medium") is None
+
+
+def render_task(title: str, task: TaskResult, kind: str, spec: dict) -> None:
     """One prediction: the label in large words, then the certainty in words (never a score)."""
     with st.container(key=f"result-{kind}", gap="small"):
         st.subheader(title, anchor=False)
@@ -175,18 +190,22 @@ def render_task(title: str, task: TaskResult, kind: str) -> None:
         st.badge(words, color=badge_color)
         if task.second_label:
             st.caption(f"وقد تكون: **{label_text(task.second_label)}**")
+        if no_confident_level(spec, task.label):
+            st.caption(f"لا تُعرض ثقة مرتفعة أو متوسطة لتنبؤ «{label_text(task.label)}»: "
+                       "لم تكن هذه التنبؤات موثوقة بما يكفي على بيانات التطوير.")
         if kind == "sentiment" and task.label == "محايد":
             st.caption(NEUTRAL_MEANING)
 
 
-def render_result(result: Prediction) -> None:
+def render_result(result: Prediction, card: dict) -> None:
+    tasks = card["tasks"]
     with st.container(border=True, key="result"):
         st.header("النتيجة", anchor=False)
         sentiment_col, aspect_col = st.columns(2, gap="medium")
         with sentiment_col:
-            render_task("المشاعر", result.sentiment, "sentiment")
+            render_task("المشاعر", result.sentiment, "sentiment", tasks["sentiment"])
         with aspect_col:
-            render_task("الجانب الرئيسي", result.aspect, "aspect")
+            render_task("الجانب الرئيسي", result.aspect, "aspect", tasks["aspect"])
         st.caption(f"{icon('info')} النتيجة تقدير آلي من نموذج إحصائي، وقد تكون خاطئة.", unsafe_allow_html=True)
     for code in result.notes:
         alert = st.warning if code == "library_version" else st.info
@@ -231,9 +250,9 @@ def render_analysis(version: str) -> None:
         except InvalidReview as err:
             st.warning(err.message, icon=":material/edit_note:")
         except FileNotFoundError:
-            st.error(MISSING_MODELS, icon=":material/error:")
+            st.error(MISSING_MODELS.format(command=BUILD_COMMANDS[version]), icon=":material/error:")
         else:
-            render_result(result)
+            render_result(result, get_card(version))
     render_limits()
 
 
@@ -342,10 +361,11 @@ def render_methodology(version_label: str, card: dict) -> None:
                 st.table({"الفئة": [label_text(k) for k in per_class], "F1": [f3(v) for v in per_class.values()]},
                          hide_index=True, alt=f"F1 لكل فئة على الاختبار المحجوز · {name}")
 
-    st.subheader("ماذا تعني ثقة النموذج؟", anchor=False)
+    st.subheader("ثقة النموذج بقاعدة الإصدار 1", anchor=False)
     st.markdown(
         "مستوى الثقة وصف لنطاق أعلى درجة يعطيها النموذج لتنبؤه، **وليس احتمالًا معايرًا**. "
-        "الجدولان يبيّنان ما لوحظ مرة واحدة على الاختبار المحجوز: حصة المراجعات في كل مستوى، "
+        "في قاعدة الإصدار 1 زوج عتبات واحد لكل مهمة، يسري على كل الفئات. "
+        "الجدولان يبيّنان ما لوحظ بهذه القاعدة مرة واحدة على الاختبار المحجوز: حصة المراجعات في كل مستوى، "
         "ونسبة التنبؤات الصحيحة فيه. هذه تكرارات رُصدت على بيانات سابقة، **وليست ضمانًا** لصحة أي تنبؤ جديد."
     )
     level_cols = st.columns(2)
@@ -353,33 +373,231 @@ def render_methodology(version_label: str, card: dict) -> None:
         levels = spec.get("certainty", {}).get("test_levels")
         if levels:
             with col:
-                st.markdown(f"**{title}**")
-                st.table(_rows_for_levels(levels), hide_index=True, alt=f"مستويات الثقة على الاختبار المحجوز · {title}")
+                st.markdown(f"**{title}: قاعدة الإصدار 1 (زوج عتبات واحد)**")
+                st.table(_rows_for_levels(levels), hide_index=True,
+                         alt=f"مستويات الثقة بقاعدة الإصدار 1 على الاختبار المحجوز · {title}")
 
-    st.subheader("حدود معروفة", anchor=False)
-    st.markdown(bullets((
+
+# --------------------------------------------------------------------------- version 2
+
+CANDIDATES = {"V1": "الإصدار 1", "H1_phrases": "ثنائيات الكلمات", "H2_cues": "دلائل القطبية", "H3_both": "الاثنان معًا"}
+
+
+def signed(x: float) -> str:
+    """A signed number with a true minus sign, kept left-to-right inside Arabic text."""
+    return ltr(f"{x:+.3f}".replace("-", "−"))
+
+
+def _level_changes(v1_spec: dict, v2_spec: dict) -> list[str]:
+    """What the per-label rule of version 2 changes against the single version-1 pair, in words."""
+    certainty = v2_spec.get("certainty", {})
+    old = v1_spec.get("certainty", {}).get("thresholds") or certainty.get("v1_thresholds")
+    if not old:
+        return []
+    lines = []
+    for label, new in certainty.get("thresholds_by_class", {}).items():
+        name = f"«{label_text(label)}»"
+        high, medium = new.get("high"), new.get("medium")
+        if high is None and medium is None:
+            lines.append(f"لا يُعرض تنبؤ {name} بثقة مرتفعة أو متوسطة.")
+            continue
+        for level, value, word in (("high", high, "مرتفعة"), ("medium", medium, "متوسطة")):
+            if value is None:
+                lines.append(f"لا تُعرض ثقة «{word}» لتنبؤ {name}.")
+            elif value > old[level]:
+                lines.append(f"يحتاج تنبؤ {name} درجة أعلى من الإصدار 1 ليُعرض بثقة {word}.")
+            elif value < old[level]:
+                lines.append(f"يُعرض تنبؤ {name} بثقة {word} من درجة أدنى من الإصدار 1.")
+    return lines
+
+
+def render_overview(v1_card: dict, v2_card: dict) -> None:
+    """What the page runs when version 2 is in use: version-1 classifiers, version-2 certainty words."""
+    tasks1, tasks2 = v1_card.get("tasks", {}), v2_card.get("tasks", {})
+    with st.container(border=True, key="overview"):
+        st.header("ما الذي يعمل في هذه الصفحة؟", anchor=False)
+        if tasks2 and all(spec.get("same_as_v1") for spec in tasks2.values()):
+            first = ("**المصنِّفان** هما مصنِّفا الإصدار 1 دون أي تغيير، وقد قِيسا مرة واحدة على "
+                     "اختبار محجوز (القسم التالي).")
+        else:
+            first = "**المصنِّفان** من الإصدار 2، ولم يُقاسا على الاختبار المحجوز."
+        changes = []
+        for task in ("sentiment", "aspect"):
+            changes += _level_changes(tasks1.get(task, {}), tasks2.get(task, {}))
+        second = ("**الإصدار 2 يغيّر عرض الثقة فقط:** لكل فئة متنبأ بها مستوياتها، استُخرجت وفُحصت على "
+                  "بيانات التطوير وحدها. يمكن أن يُرفع مستوى أو يُحذف مقارنة بالإصدار 1، ولا يمكن أن يتسع.")
+        second += "".join(f"\n  - {line}" for line in changes)
+        st.markdown(bullets((first, second, "لم يُقس أي شيء في الإصدار 2 على الاختبار المحجوز.")))
+
+
+def _v2_level_rows(spec: dict) -> dict | None:
+    """Per predicted label and level on the outer development folds: version-2 rule, then version-1 rule."""
+    certainty = spec.get("certainty", {})
+    outer = certainty.get("outer_levels")
+    if not outer:
+        return None
+    by_class = certainty.get("thresholds_by_class", {})
+    old = {(r["label"], r["level"]): r for r in certainty.get("v1_rule_outer_levels", [])}
+    # Most telling columns first (a phone shows them without scrolling sideways).
+    rows = {"الفئة": [], "الثقة": [], "الصحيح منها": [], "بقاعدة الإصدار 1": [], "فاصل الثقة": [],
+            "الحصة": [], "الصفوف": []}
+    if not old:
+        del rows["بقاعدة الإصدار 1"]
+    for r in outer:
+        shown = r["level"] == "low" or by_class.get(r["label"], {}).get(r["level"]) is not None
+        rows["الفئة"].append(label_text(r["label"]))
+        rows["الثقة"].append(LEVEL_NAMES.get(r["level"], r["level"]))
+        if shown and r.get("rows"):
+            interval = r.get("interval")
+            rows["الحصة"].append(pct(r["share"]))
+            rows["الصحيح منها"].append(pct(r["accuracy"]))
+            rows["فاصل الثقة"].append(ltr(f"{pct(interval[0])}–{pct(interval[1])}") if interval else "—")
+        else:
+            rows["الحصة"].append("—")
+            rows["الصحيح منها"].append("لا يُعرض" if not shown else "—")
+            rows["فاصل الثقة"].append("—")
+        rows["الصفوف"].append(str(r.get("rows", 0)))
+        if old:
+            before = old.get((r["label"], r["level"]))
+            rows["بقاعدة الإصدار 1"].append(
+                f"{pct(before['accuracy'])} ({before['rows']})" if before and before.get("rows") else "—")
+    return rows
+
+
+def _removed_examples(spec: dict) -> list[str]:
+    """Labels left with no high or medium level, and how right those levels were under the version-1 rule."""
+    certainty = spec.get("certainty", {})
+    old = [r for r in certainty.get("v1_rule_outer_levels", []) if r["level"] != "low" and r.get("rows")]
+    lines = []
+    for label in certainty.get("thresholds_by_class", {}):
+        if not no_confident_level(spec, label):
+            continue
+        parts = [f"«{LEVEL_NAMES[r['level']]}» (صحيح في {pct(r['accuracy'])})" for r in old if r["label"] == label]
+        if parts:
+            lines.append(f"بقاعدة الإصدار 1 كان تنبؤ «{label_text(label)}» يُعرض أحيانًا بثقة "
+                         + " أو ".join(parts) + "؛ في الإصدار 2 لا يُعرض بأيٍّ منهما.")
+    return lines
+
+
+def render_v2_certainty(version_label: str, card: dict) -> None:
+    """Per-label certainty of version 2 on development data; every number comes from ``card``."""
+    tasks = card.get("tasks", {})
+    st.header(f"{version_label}: الثقة حسب الفئة (بيانات التطوير فقط)", anchor=False)
+    st.markdown(
+        "لكل فئة متنبأ بها مستوياتها الخاصة، استُخرجت من بيانات التطوير وحدها. لا يبدأ أي مستوى تحت عتبته "
+        "في الإصدار 1، فيمكن أن يُرفع أو يُحذف لفئة ولا يمكن أن يتسع؛ ويُحذف مستوى إذا لم تبلغ دقته الهدف "
+        "أو لم تكفِ البيانات لإثباته. اختيرت هذه القاعدة بعد رؤية نتائج القاعدة المسجلة مسبقًا، التي كانت "
+        "توسّع بعض المستويات، وهي الأكثر تحفظًا بينهما (القاعدتان في `reports/v2/results.md`)."
+    )
+    examples = [line for task in ("sentiment", "aspect") for line in _removed_examples(tasks.get(task, {}))]
+    if examples:
+        st.markdown(bullets(examples))
+    for task, title in (("sentiment", "المشاعر"), ("aspect", "الجانب الرئيسي")):
+        rows = _v2_level_rows(tasks.get(task, {}))
+        if rows:
+            with st.expander(f"{title}: المستويات حسب الفئة", key=f"v2-levels-{task}"):
+                with st.container(key=f"scroll-hint-{task}"):
+                    st.caption("اسحب الجدول جانبيًا لرؤية بقية الأعمدة.")
+                st.table(rows, hide_index=True, alt=f"مستويات الثقة في الإصدار 2 على بيانات التطوير · {title}")
+    st.caption(
+        "تكرارات رُصدت على بيانات التطوير (الطيات الخارجية للتحقق المتقاطع، وكل مراجعة فيها ثلاث مرات)، "
+        "وليست ضمانًا لصحة أي تنبؤ جديد؛ ولا يوجد اختبار مستقل للإصدار 2. «بقاعدة الإصدار 1»: نسبة الصحيح "
+        "(وعدد الصفوف) بزوج عتبات الإصدار 1 على الطيات نفسها. الحصة: نسبة الخانة من كل التنبؤات؛ "
+        "الصفوف: عدد التنبؤات."
+    )
+
+
+def render_experiment(card: dict) -> None:
+    """The neutral-class experiment of version 2 and why it was or was not adopted, from ``card``."""
+    experiment = card.get("experiment")
+    if not experiment:
+        return
+    adopted = experiment.get("adopted")
+    st.header("تجربة تحسين المحايد (" + ("اعتُمدت" if adopted else "لم تُعتمد") + ")", anchor=False)
+    candidates = experiment.get("candidates", {})
+    if candidates:
+        st.table({
+            "المرشح": [CANDIDATES.get(name, name) for name in candidates],
+            "Macro-F1": [f3(c["selection_macro_f1"]) for c in candidates.values()],
+            "F1 المحايد": [f3(c["selection_neutral_f1"]) for c in candidates.values()],
+        }, hide_index=True, alt="مرشحو تجربة المحايد على طيات الاختيار")
+        st.caption("على طيات الاختيار من بيانات التطوير.")
+    text = []
+    chosen = experiment.get("chosen_on_selection_folds")
+    if chosen:
+        text.append(f"اختارت القاعدة المعلنة «{CANDIDATES.get(chosen, chosen)}» على طيات الاختيار.")
+    nested = card.get("nested_vs_v1", {})
+    gain, neutral = nested.get("gain"), nested.get("neutral")
+    if gain:
+        text.append(f"لكن تقدير الإجراء كله بتحقق متقاطع متداخل أعطى مكسبًا في {ltr('Macro-F1')} قدره "
+                    f"{signed(gain['point'])}، بفاصل ثقة بين {signed(gain['low'])} و{signed(gain['high'])}.")
+    if neutral:
+        text.append(f"وتغيّر {ltr('F1')} المحايد المقدَّر {signed(neutral['point'])}، بفاصل بين "
+                    f"{signed(neutral['low'])} و{signed(neutral['high'])}.")
+    if not adopted:
+        reason = ("ولأن فاصل المكسب لا يقع كله فوق الصفر، كما يشترط المعيار المعلن مسبقًا،"
+                  if gain and gain["low"] <= 0 else "ولأن شروط الاعتماد المعلنة مسبقًا لم تتحقق كلها،")
+        text.append(f"{reason} لم يُعتمد نموذج مشاعر جديد، وبقي مصنِّف الإصدار 1.")
+    text.append("الدليل كله من بيانات التطوير نفسها التي بُني عليها التصميم، فلا يُعدّ تأكيدًا مستقلًا.")
+    st.markdown(" ".join(text))
+
+
+# --------------------------------------------------------------------------- limits and details
+
+
+def render_known_limits(version: str) -> None:
+    st.header("حدود معروفة", anchor=False)
+    lines = [
         "جانب رئيسي واحد لكل مراجعة؛ لا يحلل النموذج مشاعر كل جانب مذكور في النص.",
         f"النطاق مقاهي الرياض على {ltr('Google Maps')}؛ لم يُقس الأداء على مطاعم أو لهجات أخرى.",
         "لا يكشف النموذج السخرية، والنفي لا يُلتقط إلا من تتابع الكلمات والحروف.",
         "النص الوصفي الخالي من الرأي قد يأخذ وسمًا إيجابيًا أو سلبيًا غير مقصود.",
         "نص من حروف عربية بلا معنى لا يُرفض دائمًا؛ ثقة النموذج المنخفضة هي الإشارة الوحيدة حينها.",
-    )))
+    ]
+    if version == "v2":
+        lines.append("تقديرات الإصدار 2 من بيانات التطوير وحدها؛ لا يوجد اختبار مستقل للإصدار 2.")
+    st.markdown(bullets(lines))
 
+
+def render_details(version: str, v1_card: dict, v2_card: dict | None) -> None:
     with st.expander("تفاصيل تقنية", icon=":material/tune:"):
-        lines = []
-        for name, spec in (("المشاعر", sentiment), ("الجانب", aspect)):
-            cfg = spec.get("configuration")
+        if version == "v2":
+            lines = ["قاعدة الثقة المستخدمة في الصفحة: **الإصدار 2**، مستويات لكل فئة متنبأ بها."]
+        else:
+            lines = ["قاعدة الثقة المستخدمة في الصفحة: **الإصدار 1**، زوج عتبات واحد لكل مهمة. "
+                     f"الإصدار 2 غير متاح هنا (بطاقته أو نماذجه غير موجودة)؛ لبنائه: `{BUILD_COMMANDS['v2']}`"]
+        for name, task in (("المشاعر", "sentiment"), ("الجانب", "aspect")):
+            cfg = v1_card.get("tasks", {}).get(task, {}).get("configuration")
             if cfg:
                 params = "، ".join(f"`{k} = {v}`" for k, v in cfg.get("params", {}).items())
                 lines.append(f"**{name}:** التمثيل `{cfg['representation']}`، النموذج `{cfg['model']}`، "
                              f"أوزان الفئات `{cfg['class_weight']}`" + (f"، {params}" if params else ""))
-        if card.get("fingerprint"):
-            lines.append(f"بصمة البروتوكول المجمَّد: `{card['fingerprint'][:8]}`")
-        versions = card.get("versions")
+        if v1_card.get("fingerprint"):
+            lines.append(f"بصمة البروتوكول المجمَّد للإصدار 1: `{v1_card['fingerprint'][:8]}`")
+        if v2_card and v2_card.get("fingerprint"):
+            lines.append(f"بصمة الإصدار 2: `{v2_card['fingerprint'][:8]}`")
+        versions = (v2_card or v1_card).get("versions")
         if versions:
             lines.append("الإصدارات: " + "، ".join(f"`{k} {v}`" for k, v in versions.items()))
-        lines.append("التقرير الكامل: `reports/final_test.md`")
+        lines.append("التقارير: `reports/final_test.md`" + ("، `reports/v2/results.md`" if v2_card else ""))
         st.markdown(bullets(lines))
+
+
+def render_method_tab(version: str) -> None:
+    try:
+        v1_card = get_card("v1")
+        v2_card = get_card("v2") if version == "v2" else None
+    except FileNotFoundError:
+        st.error("بطاقة النموذج غير موجودة في `models/`.", icon=":material/error:")
+        return
+    if v2_card:
+        render_overview(v1_card, v2_card)
+    render_methodology(VERSIONS["v1"], v1_card)
+    if v2_card:
+        render_v2_certainty(VERSIONS["v2"], v2_card)
+        render_experiment(v2_card)
+    render_known_limits(version)
+    render_details(version, v1_card, v2_card)
 
 
 # --------------------------------------------------------------------------- page
@@ -387,6 +605,7 @@ def render_methodology(version_label: str, card: dict) -> None:
 st.set_page_config(page_title="تحليل مراجعات المقاهي", page_icon=":material/local_cafe:", layout="centered")
 st.html(APP_DIR / "style.css")
 init_state()
+version = page_version()
 
 st.title("تحليل مراجعات المقاهي", anchor=False)
 st.markdown("اكتب مراجعة عربية عن مقهى، ويقدّر النموذج **مشاعرها** و**جانبها الرئيسي**.")
@@ -396,14 +615,9 @@ analyse_tab, method_tab = st.tabs(
     [TAB_ANALYSE, TAB_METHOD], default=TAB_METHOD if st.query_params.get("view") == "method" else None
 )
 with analyse_tab:
-    render_analysis(DEFAULT_VERSION)
+    render_analysis(version)
 with method_tab:
-    try:
-        card = get_card(DEFAULT_VERSION)
-    except FileNotFoundError:
-        st.error("بطاقة النموذج غير موجودة: `models/model_card.json`.", icon=":material/error:")
-    else:
-        render_methodology(VERSIONS[DEFAULT_VERSION], card)
+    render_method_tab(version)
 
 # Arabic page language for screen readers and hyphenation; the direction is set in style.css.
 st.html("<script>document.documentElement.lang = 'ar';</script>", unsafe_allow_javascript=True)
