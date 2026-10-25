@@ -30,6 +30,7 @@ FINAL_JSON = config.REPORTS_DIR / "final_test.json"
 FINAL_MD = config.REPORTS_DIR / "final_test.md"
 MODELS_DIR = config.ROOT / "models"
 SCRATCH_DIR = config.ROOT / ".local" / "scratch"  # per-row predictions with texts stay local
+DIGESTS_FILE = config.REPORTS_DIR / "model_digests.json"  # tracked: digests of the saved models' development probabilities
 LOCAL_ACCESS_LOG = config.ROOT / ".local" / "test_access_log.json"  # git-ignored copy of the access log
 LOCK_FILE = SCRATCH_DIR / "final.lock"
 # Fingerprint of reports/final_protocol.md as merged before M5; a regenerated protocol cannot replace it.
@@ -260,6 +261,37 @@ def save_models(models: dict) -> None:
         joblib.dump(models[task]["final"], MODELS_DIR / f"{task}.joblib")
 
 
+def dev_digest(pipeline, texts) -> str:
+    """Digest of the pipeline's development probabilities (rounded), to tell a rebuilt model from the earlier one."""
+    proba = np.round(pipeline.predict_proba(list(texts)), 10)
+    return hashlib.sha256(proba.tobytes()).hexdigest()
+
+
+def runtime_versions() -> dict:
+    return dict(protocol.library_versions(), joblib=joblib.__version__, python=platform.python_version())
+
+
+def record_digests(digests: dict, path=None) -> bool | None:
+    """Store the digests on first use (None); afterwards report whether they are unchanged. Never overwrites.
+
+    Different digests under the same library versions mean the code, data or fitting changed: that raises.
+    Under other versions the difference is reported (False) so the demo models can still be rebuilt."""
+    path = path or DIGESTS_FILE
+    versions = runtime_versions()
+    if not path.exists():
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(dict(versions=versions, digests=digests), indent=1) + "\n",
+                        encoding="utf-8", newline="\n")
+        return None
+    stored = json.loads(path.read_text(encoding="utf-8"))
+    if stored["digests"] == digests:
+        return True
+    if stored["versions"] == versions:
+        raise RuntimeError("the rebuilt models differ from the recorded ones under identical library versions; "
+                           "the saved models were left untouched")
+    return False
+
+
 def evaluate(test: pd.DataFrame, predicted: dict, p: dict) -> dict:
     out, final_ok = {}, {}
     for task, column in experiments.TASKS.items():
@@ -301,9 +333,13 @@ def run_final(rerun_reason: str | None = None, check_only: bool = False) -> dict
     check_fingerprint(rebuilt, frozen)
     p = with_frozen_results(rebuilt, frozen)
     models = {task: fit_models(dev, p["tasks"][task], task) for task in experiments.TASKS}
+    if check_only:  # compare before the saved files are replaced
+        digests = {task: dev_digest(models[task]["final"], dev["text"]) for task in experiments.TASKS}
+        unchanged = record_digests(digests)
+        save_models(models)
+        return dict(fingerprint=p["fingerprint"], commit=sha, test_read=False, digests=digests,
+                    digests_unchanged=unchanged)
     save_models(models)
-    if check_only:
-        return dict(fingerprint=p["fingerprint"], commit=sha, test_read=False)
     with _lock():
         entries = previous_reads()  # a run that finished meanwhile counts
         check_access(entries, rerun_reason)

@@ -37,7 +37,7 @@ def test_rejected_inputs(text, code):
 
 @pytest.mark.parametrize(
     "text",
-    ["ﻗﻬﻮﺓ ﻣﻤﺘﺎﺯﺓ", "القهوة ممتازة", "قَهْوَةٌ لذيييييذة", "قـــهوة حلوة", "ما عجبني الكيك 😡", "كوفي ممتاز coffee", "الجلسه حلوه ٣ نجوم"],
+    ["القهوة ممتازة", "قَهْوَةٌ لذيييييذة", "قـــهوة حلوة", "ما عجبني الكيك 😡", "كوفي ممتاز coffee", "الجلسه حلوه ٣ نجوم"],
 )
 def test_accepted_inputs(text):
     assert check_review(text)
