@@ -67,8 +67,8 @@ def cmd_experiments() -> None:
 
 
 def cmd_models() -> None:
-    from .experiments import (ERRORS_FILE, MODELS_FILE, TASKS, error_markdown, m4_markdown, oof_predictions,
-                              read_log, resolve_m4)
+    from .experiments import (ERROR_CATEGORIES_FILE, ERRORS_FILE, MODELS_FILE, TASKS, categories_markdown,
+                              error_markdown, m4_markdown, oof_predictions, read_log, resolve_m4)
     from .split import load_dev
 
     dev = load_dev()
@@ -83,6 +83,8 @@ def cmd_models() -> None:
         parts.append(error_markdown(task, r["final"], oof))
         oof.merge(dev[["rid", "text"]], on="rid").query("y != pred").to_csv(
             scratch / f"oof_errors_{task}.csv", index=False, encoding="utf-8")
+    cats = pd.read_csv(ERROR_CATEGORIES_FILE, keep_default_na=False)
+    parts.append(categories_markdown(cats, {task: r["final"]["name"] for task, r in results.items()}))
     ERRORS_FILE.write_text("\n".join(parts), encoding="utf-8", newline="\n")
     print(f"{len(read_log()) - before} experiment(s) appended; wrote {MODELS_FILE.name} and {ERRORS_FILE.name}")
 
