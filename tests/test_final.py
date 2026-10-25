@@ -263,3 +263,24 @@ def test_test_rows_must_match_the_published_split(toy_world):
         final.run_final()
     log = json.loads((tmp / "access.json").read_text(encoding="utf-8"))  # the access was logged before the check
     assert len(log) == 1 and log[0]["test_rows"] == len(test)
+
+
+def test_dev_digest_is_stable_and_detects_a_different_model():
+    from arabic_reviews.features import build_pipeline
+
+    texts = ["القهوة ممتازة", "القهوة سيئة", "الخدمة بطيئة", "الخدمة رائعة"] * 3
+    labels = ["ايجابي", "سلبي", "سلبي", "ايجابي"] * 3
+    spec = dict(model="logreg", params=dict(C=1), normalisation="none", representation="word11", class_weight=None)
+    a = build_pipeline(spec).fit(texts, labels)
+    b = build_pipeline(spec).fit(texts, labels)
+    c = build_pipeline(dict(spec, params=dict(C=0.1))).fit(texts, labels)
+    assert final.dev_digest(a, texts) == final.dev_digest(b, texts)
+    assert final.dev_digest(a, texts) != final.dev_digest(c, texts)
+
+
+def test_record_digests_stores_then_compares(tmp_path):
+    path = tmp_path / "digests.json"
+    assert final.record_digests({"sentiment": "aa", "aspect": "bb"}, path) is None  # first time: stored
+    assert final.record_digests({"sentiment": "aa", "aspect": "bb"}, path) is True
+    assert final.record_digests({"sentiment": "aa", "aspect": "cc"}, path) is False
+    assert json.loads(path.read_text(encoding="utf-8"))["aspect"] == "bb"  # a mismatch never overwrites

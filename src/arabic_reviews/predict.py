@@ -9,14 +9,16 @@ thresholds are read from ``models/model_card.json``.
 from __future__ import annotations
 
 import json
+import platform
 import re
+import sys
 import unicodedata
 import warnings
+from importlib import metadata
 from dataclasses import dataclass, field
 from functools import lru_cache
 
 import joblib
-import sklearn
 
 from . import config
 
@@ -24,18 +26,24 @@ MODELS_DIR = config.ROOT / "models"
 CARD_FILE = MODELS_DIR / "model_card.json"
 
 # The development texts have 4-357 characters (99% under 204). A review needs
-# at least two Arabic letters, and anything beyond three times the longest
-# development text is refused rather than silently truncated.
+# at least two Arabic letters, and anything beyond 1000 characters (about
+# three times the longest development text) is refused rather than silently
+# truncated.
 MIN_ARABIC_LETTERS = 2
 MAX_CHARS = 1000
 MIN_ARABIC_SHARE = 0.5
 
 ARABIC_LETTER_RE = re.compile("[ء-غف-يٱ-ۓۺ-ۿ]")
+# Arabic Presentation Forms-A/B: display-only glyphs that the saved pipelines (no normalisation) do not map to
+# the plain letters, so such text would reach the model as unknown characters.
+PRESENTATION_FORMS_RE = re.compile(r"[ﭐ-﷿ﹰ-﻿]")
 
 
 def _arabic_count(text: str) -> int:
     """Arabic letters, also when written in presentation forms (counted on an NFKC copy)."""
     return len(ARABIC_LETTER_RE.findall(unicodedata.normalize("NFKC", text)))
+
+
 LEVEL_WORDS = {"high": "عالٍ", "medium": "متوسط", "low": "منخفض"}
 TASKS = ("sentiment", "aspect")
 
@@ -45,6 +53,7 @@ REJECTIONS = {
     "too_short": "النص قصير جدًا؛ يلزم حرفان عربيان على الأقل.",
     "not_arabic": "النص ليس عربيًا في معظمه. النموذج مدرَّب على مراجعات عربية فقط.",
     "too_long": f"النص أطول من {MAX_CHARS} حرفًا. اختصره إلى مراجعة واحدة.",
+    "unreadable": "لا يستطيع النموذج قراءة هذا النص (أشكال عرض عربية أو حروف غير معروفة). الصق المراجعة كنص عادي.",
 }
 
 
@@ -87,6 +96,8 @@ def check_review(text) -> str:
     text = text.strip()
     if len(text) > MAX_CHARS:
         raise InvalidReview("too_long")
+    if PRESENTATION_FORMS_RE.search(text):
+        raise InvalidReview("unreadable")
     arabic = _arabic_count(text)
     letters = sum(ch.isalpha() for ch in unicodedata.normalize("NFKC", text))
     if arabic == 0 or letters == 0 or arabic / letters < MIN_ARABIC_SHARE:
@@ -122,6 +133,21 @@ def certainty_level(score: float, thresholds: dict[str, float]) -> str:
     return "low"
 
 
+def library_mismatch(card: dict) -> bool:
+    """True when an installed library differs from the version the card was built with."""
+    for name, built in card["versions"].items():
+        if name == "python":
+            same = ".".join(platform.python_version().split(".")[:2]) == ".".join(built.split(".")[:2])
+        else:
+            try:
+                same = metadata.version(name) == built
+            except metadata.PackageNotFoundError:
+                same = False
+        if not same:
+            return True
+    return False
+
+
 def _task_result(pipeline, text: str, spec: dict) -> TaskResult:
     proba = pipeline.predict_proba([text])[0]
     order = proba.argsort()[::-1]
@@ -144,19 +170,23 @@ def predict(text: str) -> Prediction:
     card, models = model_card(), load_models()
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
+        if any(pipeline[:-1].transform([text]).nnz == 0 for pipeline in models.values()):
+            raise InvalidReview("unreadable")  # no feature set: the output would only be the class prior
         sentiment = _task_result(models["sentiment"], text, card["tasks"]["sentiment"])
         aspect = _task_result(models["aspect"], text, card["tasks"]["aspect"])
     notes = []
-    if len(text) > model_card()["input"]["development_length_chars"]["p99"]:
+    if len(text) > card["input"]["development_length_chars"]["p99"]:
         notes.append("long_text")
     if _arabic_count(text) < 4:
         notes.append("very_short")
-    if card["versions"]["scikit-learn"] != sklearn.__version__:
+    if library_mismatch(card):
         notes.append("library_version")
     return Prediction(sentiment=sentiment, aspect=aspect, notes=notes)
 
 
 def _main(argv: list[str]) -> int:
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(encoding="utf-8")  # a piped stdout on Windows is not UTF-8
     if not argv:
         print('usage: python -m arabic_reviews.predict "review text"')
         return 2
@@ -172,6 +202,4 @@ def _main(argv: list[str]) -> int:
 
 
 if __name__ == "__main__":
-    import sys
-
     raise SystemExit(_main(sys.argv[1:]))

@@ -27,6 +27,10 @@ NOTES = {
     "very_short": "المراجعة قصيرة جدًا؛ النتيجة أقل ثباتًا.",
     "library_version": "إصدار المكتبة يختلف عن إصدار التدريب؛ أعد بناء النماذج.",
 }
+
+card = model_card()
+
+
 def level_text(task: str, level: str) -> str:
     """Hold-out accuracy of the band, from the model card."""
     row = next(r for r in card["tasks"][task]["certainty"]["test_levels"] if r["level"] == level)

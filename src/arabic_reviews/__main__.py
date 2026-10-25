@@ -103,6 +103,9 @@ def cmd_final(rerun_reason: str | None = None, check_only: bool = False) -> None
     r = run_final(rerun_reason=rerun_reason, check_only=check_only)
     if check_only:
         print(f"fingerprint {r['fingerprint']} matches the frozen protocol; models fit; test partition not read")
+        state = {None: "stored for later comparisons", True: "identical to the stored ones",
+                 False: "DIFFERENT from the stored ones (library or code change)"}[r["digests_unchanged"]]
+        print(f"development-probability digests of the saved models: {state}")
         return
     for task, t in r["tasks"].items():
         print(f"{task}: test Macro-F1 {t['metrics']['final']['macro_f1']:.4f} ({t['position']['final']} the expected "
