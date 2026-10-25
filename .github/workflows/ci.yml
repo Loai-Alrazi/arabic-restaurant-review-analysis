@@ -51,5 +51,7 @@ jobs:
           pip install -e . --no-deps
       - name: Run the walkthrough notebook from a fresh clone (it fetches and prepares the data itself)
         run: python -m nbconvert --to notebook --execute notebooks/project_walkthrough.ipynb --output-dir "$RUNNER_TEMP" --ExecutePreprocessor.timeout=1800
-      - name: The notebook run leaves the published reports and split unchanged
-        run: git diff --exit-code -- reports/ data/splits/ notebooks/
+      - name: The notebook run leaves every tracked file unchanged and adds no unignored file
+        run: |
+          git diff --exit-code
+          test -z "$(git status --porcelain)"

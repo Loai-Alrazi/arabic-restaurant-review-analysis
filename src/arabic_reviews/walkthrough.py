@@ -113,26 +113,32 @@ def environment_table() -> pd.DataFrame:
 
 # ---- local data and the test lock -------------------------------------------------------------
 
-PUBLISHED_BY_STEPS = (config.QUALITY_REPORT, config.LINEAGE_FILE, config.SPLIT_FILE,
+PUBLISHED_BY_STEPS = (config.MANIFEST_FILE, config.QUALITY_REPORT, config.LINEAGE_FILE, config.SPLIT_FILE,
                       config.NEAR_DUPLICATES_FILE, config.SPLIT_REPORT)
+
+
+def _without_date(manifest: bytes) -> dict:
+    return {k: v for k, v in json.loads(manifest.decode("utf-8")).items() if k != "retrieved"}
 
 
 def prepare_local_data() -> pd.DataFrame:
     """Make the local data files the notebook needs with the project's own steps.
 
     The source file is downloaded and verified when it is missing (``ingest``); the ``validate`` and
-    ``split`` steps run, in that order, only when the development file is missing. Those steps also
-    rewrite published reports; they are deterministic, and the published files are checked to be
-    byte-identical afterwards."""
+    ``split`` steps run, in that order, only when the development file is missing. Those steps rewrite
+    published files: the manifest keeps its published retrieval date when nothing else differs, and any
+    other published file that comes out different is restored and stops the run."""
     from . import __main__ as cli
 
-    before = {p: sha256(p) for p in PUBLISHED_BY_STEPS}
+    published = {p: p.read_bytes() for p in PUBLISHED_BY_STEPS}
     rows = []
     if config.RAW_FILE.exists():
         ingest.verify_file(config.RAW_FILE, config.SOURCE)
         rows.append((_rel(config.RAW_FILE), "present; size, MD5 and SHA-256 verified"))
     else:
         ingest.ingest()
+        if _without_date(config.MANIFEST_FILE.read_bytes()) == _without_date(published[config.MANIFEST_FILE]):
+            config.MANIFEST_FILE.write_bytes(published[config.MANIFEST_FILE])  # same source, published date
         rows.append((_rel(config.RAW_FILE), "downloaded from Zenodo and verified (ingest step)"))
     ran = not config.DEV_FILE.exists()
     if ran:
@@ -140,39 +146,55 @@ def prepare_local_data() -> pd.DataFrame:
             cli.cmd_validate()
             cli.cmd_split()
     rows.append((_rel(config.DEV_FILE), "written by the validate and split steps" if ran else "present"))
-    changed = [_rel(p) for p in PUBLISHED_BY_STEPS if sha256(p) != before[p]]
-    check("published validation and split reports unchanged", not changed,
-          "byte-identical" if not changed else f"changed: {changed}")
+    changed = [p for p in PUBLISHED_BY_STEPS if p.read_bytes() != published[p]]
+    for p in changed:
+        p.write_bytes(published[p])
+    check("published data manifest, validation and split reports unchanged", not changed,
+          "byte-identical" if not changed else f"differed and were restored: {[_rel(p) for p in changed]}")
     return pd.DataFrame(rows, columns=["local file", "state"])
 
 
-_LOCKED: set[str] = set()
+_LOCKED_PATHS: set[str] = set()
+_LOCKED_IDS: set[tuple[int, int]] = set()
 
 
-def _norm(path) -> str:
-    return os.path.normcase(os.path.abspath(os.fspath(path)))
+def _norm(path: str) -> str:
+    return os.path.normcase(os.path.realpath(path))
+
+
+def _identity(path: str) -> tuple[int, int] | None:
+    try:
+        st = os.stat(path)
+    except (OSError, ValueError):
+        return None
+    return (st.st_dev, st.st_ino) if st.st_ino else None
 
 
 def _refuse_locked(event: str, args: tuple) -> None:
-    if event != "open" or not _LOCKED or isinstance(args[0], int):
-        return
+    if event != "open" or not _LOCKED_PATHS or isinstance(args[0], int):
+        return  # an integer is an already open descriptor, whose opening was itself checked
     try:
-        target = _norm(args[0])
-    except (TypeError, ValueError):
+        path = os.fsdecode(args[0])
+    except TypeError:
         return
-    if target in _LOCKED:
-        raise PermissionError(f"{os.path.basename(target)} is locked for this session; held-out test "
-                              "results are shown from the saved reports only")
+    if _norm(path) in _LOCKED_PATHS or (_LOCKED_IDS and _identity(path) in _LOCKED_IDS):
+        raise PermissionError(f"{os.path.basename(path)} is the locked held-out test file; its results are "
+                              "shown from the saved reports only")
 
 
 def lock_test_partition() -> str:
     """Refuse every later attempt in this Python process to open the held-out test file.
 
-    A ``sys.addaudithook`` hook sees every file opening (``open``, ``pathlib``, pandas, ``os.open``)
-    and cannot be removed, so the lock lasts until the kernel restarts."""
-    if not _LOCKED:
+    A ``sys.addaudithook`` hook sees every file opening (``open``, ``pathlib``, pandas, ``os.open``) and
+    matches the resolved path and the file identity, so links and relative or byte paths are refused
+    too. It cannot be removed, so it lasts until the kernel restarts. It is a guard against accidental
+    reads, not a sandbox: code could still copy the file through other processes."""
+    if not _LOCKED_PATHS:
         sys.addaudithook(_refuse_locked)
-    _LOCKED.add(_norm(config.TEST_FILE))
+    _LOCKED_PATHS.add(_norm(os.fspath(config.TEST_FILE)))
+    identity = _identity(os.fspath(config.TEST_FILE))
+    if identity:
+        _LOCKED_IDS.add(identity)
     name = _rel(config.TEST_FILE)
     print(f"locked: {name} cannot be opened again in this session")
     return name
@@ -272,8 +294,10 @@ def partition_overview(dev: pd.DataFrame) -> pd.DataFrame:
     assignment = pd.read_csv(config.SPLIT_FILE)
     table = assignment.groupby("partition").agg(rows=("rid", "size"), groups=("group_id", "nunique"))
     table["share"] = (table.rows / table.rows.sum()).round(3)
-    check("load_dev() returns exactly the development partition", len(dev) == table.loc["dev", "rows"],
-          f"{len(dev)} rows, checked row by row against {_rel(config.SPLIT_FILE)}")
+    published = assignment[assignment.partition == "dev"].drop(columns="partition").sort_values("rid").reset_index(drop=True)
+    got = dev[list(published.columns)].sort_values("rid").reset_index(drop=True)
+    check("the development data is exactly the published development partition", got.equals(published),
+          f"{len(dev)} rows: rid, group and CV folds equal to {_rel(config.SPLIT_FILE)}")
     return table.loc[["dev", "test"]]
 
 
@@ -442,29 +466,24 @@ def representation_sizes(dev: pd.DataFrame) -> pd.DataFrame:
     return pd.DataFrame(rows).set_index("representation")
 
 
-# ---- 6. leakage prevention --------------------------------------------------------------------
+# ---- 2.4 / 6. split and leakage checks --------------------------------------------------------
 
-def verify_split(result: split.SplitResult) -> None:
+def split_audit(validated: pd.DataFrame, result: split.SplitResult) -> dict[str, pd.DataFrame]:
+    """Compare a split rebuilt from the validated data with the published one and return only aggregate
+    tables (group sizes, leakage counts, class shares per partition), so the full data can be dropped."""
     published = pd.read_csv(config.SPLIT_FILE)
-    same = result.assignment.reset_index(drop=True).equals(published)
-    check("split rebuilt from the validated data equals the published split", same, _rel(config.SPLIT_FILE))
+    check("split rebuilt from the validated data equals the published split",
+          result.assignment.reset_index(drop=True).equals(published), _rel(config.SPLIT_FILE))
     pairs = pd.read_csv(config.NEAR_DUPLICATES_FILE, keep_default_na=False)
     check("near-duplicate pairs equal the published list", result.pairs.reset_index(drop=True).equals(pairs),
           f"{len(pairs)} pairs")
-
-
-def group_sizes(assignment: pd.DataFrame) -> pd.DataFrame:
-    sizes = assignment.groupby("group_id").size()
-    table = sizes.value_counts().sort_index().rename("groups").to_frame()
-    table.index.name = "rows in group"
-    table["rows"] = table.index * table.groups
-    return table.T
-
-
-def leakage_table(validated: pd.DataFrame, result: split.SplitResult) -> pd.DataFrame:
-    checks = split.leakage_checks(validated, result.assignment, result.pairs)
-    check("leakage checks are all zero", not any(checks.values()), f"{len(checks)} counts")
-    return pd.Series(checks, name="count").to_frame()
+    counts = split.leakage_checks(validated, result.assignment, result.pairs)
+    check("leakage checks are all zero", not any(counts.values()), f"{len(counts)} counts")
+    sizes = result.assignment.groupby("group_id").size().value_counts().sort_index().rename("groups").to_frame()
+    sizes.index.name = "rows in group"
+    sizes["rows"] = sizes.index * sizes.groups
+    return dict(groups=sizes.T, leakage=pd.Series(counts, name="count").to_frame(),
+                proportions=split.proportions(validated, result.assignment).round(2))
 
 
 # ---- 7. pipelines -----------------------------------------------------------------------------
@@ -707,14 +726,17 @@ def fit_final_models(dev: pd.DataFrame, p: dict) -> dict:
     one-shot evaluation did, and compare the final models with the recorded probability digests."""
     models = {task: final.fit_models(dev, p["tasks"][task], task) for task in TASKS}
     stored = json.loads(final.DIGESTS_FILE.read_text(encoding="utf-8"))
-    same_versions = stored["versions"] == final.runtime_versions()
+    runtime = final.runtime_versions()
+    differ = [f"{k} {runtime.get(k)} (recorded {v})" for k, v in stored["versions"].items() if runtime.get(k) != v]
     for task in TASKS:
+        # exact comparison only under the recorded versions, the rule `final --check` applies
         name = f"{task}: final model reproduces the recorded development-probability digest"
         digest = final.dev_digest(models[task]["final"], dev["text"])
-        if same_versions:
+        if not differ:
             check(name, digest == stored["digests"][task], f"SHA-256 {digest[:12]}…")
         else:
-            skip(name, f"library versions differ from {_rel(final.DIGESTS_FILE)}; the CV checks above still apply")
+            skip(name, f"compared only under the recorded versions; here {', '.join(differ)}. "
+                       "The CV fold and protocol checks above do not depend on this")
     return models
 
 

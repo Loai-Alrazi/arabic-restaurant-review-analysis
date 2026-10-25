@@ -24,16 +24,27 @@ def test_lock_refuses_every_way_of_opening_the_locked_file(tmp_path):
         other = locked.with_name("dev.csv")
         for path in (locked, other):
             path.write_text("rid,text\\n1,x\\n", encoding="utf-8")
+        hard = locked.with_name("hard_link.csv")
+        os.link(locked, hard)
+        soft = locked.with_name("soft_link.csv")
+        try:
+            os.symlink(locked, soft)
+        except OSError:  # symbolic links need a privilege on Windows
+            soft = None
         config.TEST_FILE = locked
         walkthrough.lock_test_partition()
         attempts = {{
             "open": lambda: open(locked, encoding="utf-8"),
             "relative open": lambda: (os.chdir(locked.parent), open("test.csv")),
+            "bytes path": lambda: open(os.fsencode(locked), "rb"),
+            "hard link": lambda: open(hard, "rb"),
             "pathlib": locked.read_bytes,
             "pandas": lambda: pd.read_csv(locked),
             "os.open": lambda: os.open(locked, os.O_RDONLY),
             "write": lambda: locked.write_text("x"),
         }}
+        if soft is not None:
+            attempts["symbolic link"] = lambda: open(soft, "rb")
         for name, attempt in attempts.items():
             try:
                 attempt()
@@ -53,11 +64,13 @@ def test_the_test_file_is_named_only_to_lock_it():
         inspect.getsource(walkthrough.lock_test_partition).count("TEST_FILE") > 0
 
 
+# The fresh-clone branch (download, validate, split) is exercised end to end by the CI notebook job,
+# which starts without data and then requires the whole tracked tree to be unchanged.
 @pytest.mark.skipif(not (config.RAW_FILE.exists() and config.DEV_FILE.exists()), reason="data not prepared")
 def test_prepare_local_data_keeps_existing_files_and_published_reports():
     table = walkthrough.prepare_local_data()
     assert table.state.tolist() == ["present; size, MD5 and SHA-256 verified", "present"]
-    assert walkthrough.CHECKS["published validation and split reports unchanged"]["result"] == "pass"
+    assert walkthrough.CHECKS["published data manifest, validation and split reports unchanged"]["result"] == "pass"
 
 
 def test_check_records_passes_and_stops_on_a_failure():
@@ -139,10 +152,17 @@ def test_notebook_never_evaluates_on_the_test_partition():
     for c in cells:
         assert not forbidden.search(_source(c)), _source(c)[:80]
     lock = next(i for i, c in enumerate(cells) if "lock_test_partition()" in _source(c))
-    for i, c in enumerate(cells):
-        if "TEST_FILE" in _source(c):
-            assert i > lock and "except PermissionError" in _source(c)
-            assert "refused:" in _text(c)
+    lock_cell = _source(cells[lock])
+    # the full data (all partitions) is dropped in the cell that installs the lock, before the lock
+    assert lock_cell.index("del raw, validation, validated, split_result") < lock_cell.index("lock_test_partition()")
+    full_data = re.compile(r"\b(raw|validation|validated|split_result|read_source|run_validation|make_split|"
+                           r"RAW_FILE|VALIDATED_FILE|TEST_FILE)\b")
+    for c in cells[lock + 1:]:
+        names = set(full_data.findall(_source(c)))
+        assert names <= {"TEST_FILE"}, (names, _source(c)[:80])
+        if names:  # the one deliberate attempt, which must be refused
+            assert "except PermissionError" in _source(c) and "refused:" in _text(c)
+    assert sum("TEST_FILE" in _source(c) for c in cells) == 1
 
 
 def test_notebook_outputs_show_the_frozen_protocol_and_passing_checks():
