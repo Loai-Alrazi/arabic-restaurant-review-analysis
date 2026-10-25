@@ -88,6 +88,15 @@ def test_same_input_same_output(tiny_models):
     assert (a.sentiment, a.aspect) == (b.sentiment, b.aspect)
 
 
+def test_models_passed_in_give_the_same_prediction_as_the_saved_ones(tiny_models):
+    loaded = {task: joblib.load(tiny_models / "models" / f"{task}.joblib") for task in ("sentiment", "aspect")}
+    for text in ("الخدمة بطيئة", "القهوة ممتازة والطعم رائع"):
+        saved, passed = predict(text), predict(text, models=loaded)
+        assert (saved.sentiment, saved.aspect, saved.notes) == (passed.sentiment, passed.aspect, passed.notes)
+    with pytest.raises(InvalidReview):
+        predict("great coffee", models=loaded)
+
+
 def test_long_text_and_version_notes(tiny_models):
     assert "long_text" in predict("القهوة جيدة والخدمة سريعة. " * 5).notes
     card = predict_module.model_card()
