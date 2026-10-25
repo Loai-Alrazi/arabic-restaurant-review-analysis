@@ -97,16 +97,40 @@ def cmd_protocol() -> None:
     print(f"fingerprint {protocol['fingerprint']}; wrote {PROTOCOL_MD.name} and {PROTOCOL_JSON.name}")
 
 
+def cmd_final(rerun_reason: str | None = None, check_only: bool = False) -> None:
+    from .final import run_final
+
+    r = run_final(rerun_reason=rerun_reason, check_only=check_only)
+    if check_only:
+        print(f"fingerprint {r['fingerprint']} matches the frozen protocol; models fit; test partition not read")
+        return
+    for task, t in r["tasks"].items():
+        print(f"{task}: test Macro-F1 {t['metrics']['final']['macro_f1']:.4f} ({t['position']['final']} the expected "
+              f"range); versus the reference: {t['decision']['reference']}; success: {t['decision']['success']}")
+    print(f"joint accuracy {r['joint']['accuracy']:.4f}; run {r['access']['run']} logged in reports/test_access_log.json")
+
+
 COMMANDS = {
     "ingest": cmd_ingest, "validate": cmd_validate, "split": cmd_split, "eda": cmd_eda,
-    "experiments": cmd_experiments, "models": cmd_models, "protocol": cmd_protocol,
+    "experiments": cmd_experiments, "models": cmd_models, "protocol": cmd_protocol, "final": cmd_final,
 }
 
 
 def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(prog="arabic_reviews")
     parser.add_argument("step", choices=sorted(COMMANDS))
-    COMMANDS[parser.parse_args(argv).step]()
+    parser.add_argument("--check", action="store_true",
+                        help="final: verify the protocol and fit the models without reading the test partition")
+    parser.add_argument("--rerun-reason", help="final: methodological reason for reading the test partition again")
+    args = parser.parse_args(argv)
+    if args.step == "final" and args.check and args.rerun_reason is not None:
+        parser.error("--check never reads the test partition, so it takes no --rerun-reason")
+    if args.step == "final":
+        cmd_final(args.rerun_reason, args.check)
+    elif args.check or args.rerun_reason is not None:
+        parser.error("--check and --rerun-reason apply to the final step only")
+    else:
+        COMMANDS[args.step]()
 
 
 if __name__ == "__main__":

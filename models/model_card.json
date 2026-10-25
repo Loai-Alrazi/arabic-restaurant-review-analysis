@@ -1,0 +1,331 @@
+{
+ "name": "Arabic cafe review sentiment and main-aspect classifiers",
+ "commit": "b577bb0",
+ "fingerprint": "ec20dc6ba81703194ac2b536f51698cb75d38427d44fa04f6d2f6401a7977b41",
+ "test_run": {
+  "run": 1,
+  "time": "2026-10-25T10:29:29+00:00",
+  "test_sha256": "142bac8eafa549b39558c8a27c429d8cf936e4f4624521f56dbc7856f6c3c627",
+  "test_rows": 554
+ },
+ "trained_on": {
+  "partition": "development",
+  "rows": 2215,
+  "sha256": "f0d6dc75ebd542d24cb04993bd4a492c13bd14433d91b05b58828acbd795c708",
+  "split_sha256": "6a8a686fc143992313443060c5106ed80dd78a09013e85665bbeea39930a70f0"
+ },
+ "source": {
+  "record": "https://zenodo.org/records/17781916",
+  "doi": "10.5281/zenodo.17781916",
+  "license": "CC-BY-4.0"
+ },
+ "versions": {
+  "scikit-learn": "1.8.0",
+  "numpy": "2.5.4",
+  "pandas": "2.3.3",
+  "joblib": "1.6.0",
+  "python": "3.12.12"
+ },
+ "tasks": {
+  "sentiment": {
+   "file": "models/sentiment.joblib",
+   "labels": [
+    "ايجابي",
+    "سلبي",
+    "محايد"
+   ],
+   "configuration": {
+    "name": "m4_logreg_C0.3",
+    "model": "logreg",
+    "representation": "word11+char25",
+    "normalisation": "none",
+    "class_weight": "balanced",
+    "params": {
+     "C": 0.3
+    }
+   },
+   "pipeline_params": {
+    "clf__C": 0.3,
+    "clf__class_weight": "balanced",
+    "clf__dual": false,
+    "clf__fit_intercept": true,
+    "clf__intercept_scaling": 1,
+    "clf__l1_ratio": 0.0,
+    "clf__max_iter": 2000,
+    "clf__n_jobs": null,
+    "clf__penalty": "deprecated",
+    "clf__random_state": 0,
+    "clf__solver": "lbfgs",
+    "clf__tol": 0.0001,
+    "clf__verbose": 0,
+    "clf__warm_start": false,
+    "features__char25__analyzer": "char_wb",
+    "features__char25__binary": false,
+    "features__char25__decode_error": "strict",
+    "features__char25__encoding": "utf-8",
+    "features__char25__input": "content",
+    "features__char25__lowercase": true,
+    "features__char25__max_df": 1.0,
+    "features__char25__max_features": null,
+    "features__char25__min_df": 1,
+    "features__char25__ngram_range": [
+     2,
+     5
+    ],
+    "features__char25__norm": "l2",
+    "features__char25__preprocessor": null,
+    "features__char25__smooth_idf": true,
+    "features__char25__stop_words": null,
+    "features__char25__strip_accents": null,
+    "features__char25__sublinear_tf": false,
+    "features__char25__token_pattern": "(?u)\\b\\w\\w+\\b",
+    "features__char25__tokenizer": null,
+    "features__char25__use_idf": true,
+    "features__char25__vocabulary": null,
+    "features__n_jobs": null,
+    "features__transformer_weights": null,
+    "features__verbose": false,
+    "features__verbose_feature_names_out": true,
+    "features__word11__analyzer": "word",
+    "features__word11__binary": false,
+    "features__word11__decode_error": "strict",
+    "features__word11__encoding": "utf-8",
+    "features__word11__input": "content",
+    "features__word11__lowercase": true,
+    "features__word11__max_df": 1.0,
+    "features__word11__max_features": null,
+    "features__word11__min_df": 1,
+    "features__word11__ngram_range": [
+     1,
+     1
+    ],
+    "features__word11__norm": "l2",
+    "features__word11__preprocessor": null,
+    "features__word11__smooth_idf": true,
+    "features__word11__stop_words": null,
+    "features__word11__strip_accents": null,
+    "features__word11__sublinear_tf": false,
+    "features__word11__token_pattern": "(?u)\\b\\w\\w+\\b",
+    "features__word11__tokenizer": null,
+    "features__word11__use_idf": true,
+    "features__word11__vocabulary": null,
+    "memory": null,
+    "normalize__digits": "keep",
+    "normalize__negation": false,
+    "normalize__preset": "none",
+    "normalize__stopwords": false,
+    "normalize__symbols": "keep",
+    "transform_input": null,
+    "verbose": false
+   },
+   "cv_macro_f1": {
+    "mean": 0.6529,
+    "sd": 0.0244,
+    "folds": "3 x 5 grouped"
+   },
+   "expected_range": {
+    "high": 0.705996,
+    "low": 0.606893,
+    "mean": 0.656444,
+    "n": 15,
+    "sd": 0.024776
+   },
+   "test": {
+    "macro_f1": 0.656428,
+    "interval": {
+     "low": 0.603923,
+     "high": 0.704247
+    },
+    "accuracy": 0.763538,
+    "balanced_accuracy": 0.670422,
+    "per_class_f1": {
+     "ايجابي": 0.833087,
+     "سلبي": 0.736196,
+     "محايد": 0.4
+    },
+    "decision": {
+     "reference": "above",
+     "beats_dummies": {
+      "dummy_most_frequent": true,
+      "dummy_stratified": true
+     },
+     "success": true
+    }
+   },
+   "certainty": {
+    "score": "highest class probability of the logistic-regression pipeline",
+    "thresholds": {
+     "high": 0.6,
+     "medium": 0.5
+    },
+    "test_levels": [
+     {
+      "level": "high",
+      "n": 202,
+      "share": 0.364621,
+      "accuracy": 0.945545
+     },
+     {
+      "level": "medium",
+      "n": 156,
+      "share": 0.281588,
+      "accuracy": 0.75641
+     },
+     {
+      "level": "low",
+      "n": 196,
+      "share": 0.353791,
+      "accuracy": 0.581633
+     }
+    ]
+   }
+  },
+  "aspect": {
+   "file": "models/aspect.joblib",
+   "labels": [
+    "المأكولات",
+    "المشروبات",
+    "الخدمة",
+    "الجلسات",
+    "الاسعار"
+   ],
+   "configuration": {
+    "name": "m4_logreg_C1",
+    "model": "logreg",
+    "representation": "char25",
+    "normalisation": "none",
+    "class_weight": "balanced",
+    "params": {
+     "C": 1
+    }
+   },
+   "pipeline_params": {
+    "clf__C": 1,
+    "clf__class_weight": "balanced",
+    "clf__dual": false,
+    "clf__fit_intercept": true,
+    "clf__intercept_scaling": 1,
+    "clf__l1_ratio": 0.0,
+    "clf__max_iter": 2000,
+    "clf__n_jobs": null,
+    "clf__penalty": "deprecated",
+    "clf__random_state": 0,
+    "clf__solver": "lbfgs",
+    "clf__tol": 0.0001,
+    "clf__verbose": 0,
+    "clf__warm_start": false,
+    "features__analyzer": "char_wb",
+    "features__binary": false,
+    "features__decode_error": "strict",
+    "features__encoding": "utf-8",
+    "features__input": "content",
+    "features__lowercase": true,
+    "features__max_df": 1.0,
+    "features__max_features": null,
+    "features__min_df": 1,
+    "features__ngram_range": [
+     2,
+     5
+    ],
+    "features__norm": "l2",
+    "features__preprocessor": null,
+    "features__smooth_idf": true,
+    "features__stop_words": null,
+    "features__strip_accents": null,
+    "features__sublinear_tf": false,
+    "features__token_pattern": "(?u)\\b\\w\\w+\\b",
+    "features__tokenizer": null,
+    "features__use_idf": true,
+    "features__vocabulary": null,
+    "memory": null,
+    "normalize__digits": "keep",
+    "normalize__negation": false,
+    "normalize__preset": "none",
+    "normalize__stopwords": false,
+    "normalize__symbols": "keep",
+    "transform_input": null,
+    "verbose": false
+   },
+   "cv_macro_f1": {
+    "mean": 0.9069,
+    "sd": 0.0157,
+    "folds": "3 x 5 grouped"
+   },
+   "expected_range": {
+    "high": 0.93555,
+    "low": 0.879446,
+    "mean": 0.907498,
+    "n": 15,
+    "sd": 0.014026
+   },
+   "test": {
+    "macro_f1": 0.900919,
+    "interval": {
+     "low": 0.873191,
+     "high": 0.924522
+    },
+    "accuracy": 0.900722,
+    "balanced_accuracy": 0.896653,
+    "per_class_f1": {
+     "المأكولات": 0.911392,
+     "المشروبات": 0.942857,
+     "الخدمة": 0.853933,
+     "الجلسات": 0.859903,
+     "الاسعار": 0.936508
+    },
+    "decision": {
+     "reference": "above",
+     "beats_dummies": {
+      "dummy_most_frequent": true,
+      "dummy_stratified": true
+     },
+     "success": true
+    }
+   },
+   "certainty": {
+    "score": "highest class probability of the logistic-regression pipeline",
+    "thresholds": {
+     "high": 0.5,
+     "medium": 0.35
+    },
+    "test_levels": [
+     {
+      "level": "high",
+      "n": 408,
+      "share": 0.736462,
+      "accuracy": 0.977941
+     },
+     {
+      "level": "medium",
+      "n": 84,
+      "share": 0.151625,
+      "accuracy": 0.785714
+     },
+     {
+      "level": "low",
+      "n": 62,
+      "share": 0.111913,
+      "accuracy": 0.548387
+     }
+    ]
+   }
+  }
+ },
+ "joint_test_accuracy": 0.698556,
+ "input": {
+  "accepted": "one cafe/restaurant review as plain text that contains Arabic letters; empty, non-Arabic and over-long input is rejected by the inference step (M6) before the model",
+  "one_label_each": "the models return one sentiment and one main aspect per review",
+  "development_length_chars": {
+   "min": 4,
+   "p01": 9.0,
+   "median": 31.0,
+   "p99": 203.0,
+   "max": 357
+  }
+ },
+ "limits": [
+  "labels name one main aspect per review, not every aspect mentioned",
+  "trained on one source of Saudi cafe reviews; other dialects and domains are untested",
+  "certainty levels are words for score bands, not calibrated probabilities"
+ ]
+}
