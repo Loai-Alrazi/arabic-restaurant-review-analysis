@@ -29,5 +29,9 @@ jobs:
         run: |
           python -m arabic_reviews split
           git diff --exit-code -- data/splits/ reports/
+      - name: Regenerated EDA report (development partition only) must match the committed one
+        run: |
+          python -m arabic_reviews eda
+          git diff --exit-code -- reports/eda.md
       - name: Run tests
         run: pytest -q

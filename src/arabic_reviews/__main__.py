@@ -41,7 +41,14 @@ def cmd_split() -> None:
     print(json.dumps({"sha256": hashes}, indent=1))
 
 
-COMMANDS = {"ingest": cmd_ingest, "validate": cmd_validate, "split": cmd_split}
+def cmd_eda() -> None:
+    from .eda import run_eda
+
+    run_eda()
+    print(f"wrote {config.EDA_REPORT.relative_to(config.ROOT)} and {config.FIGURES_DIR.relative_to(config.ROOT)}/")
+
+
+COMMANDS = {"ingest": cmd_ingest, "validate": cmd_validate, "split": cmd_split, "eda": cmd_eda}
 
 
 def main(argv: list[str] | None = None) -> None:
