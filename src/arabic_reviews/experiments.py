@@ -29,6 +29,8 @@ COLUMNS = [
 ]
 EXPERIMENTS_FILE = config.REPORTS_DIR / "experiments.csv"
 ABLATIONS_FILE = config.REPORTS_DIR / "ablations.md"
+MODELS_FILE = config.REPORTS_DIR / "models.md"
+ERRORS_FILE = config.REPORTS_DIR / "error_analysis.md"
 MIN_DELTA = 0.01  # acceptance rule (PROJECT_PLAN.md 1.1): mean paired gain and fold wins
 MIN_WINS = 11
 
@@ -124,7 +126,8 @@ def row_identity(spec: dict) -> dict:
     return dict(
         preprocessing=describe_preprocessing(spec),
         features=spec["representation"] + ("+textstats" if spec.get("textstats") else ""),
-        params=json.dumps({**spec["params"], "class_weight": spec["class_weight"]}, sort_keys=True),
+        params=json.dumps({**spec["params"], "class_weight": spec["class_weight"],
+                           **({"tfidf": spec["tfidf"]} if spec.get("tfidf") else {})}, sort_keys=True),
     )
 
 
@@ -260,3 +263,162 @@ def axes_markdown(task_results: dict[str, tuple[list[dict], dict]]) -> str:
                          f"{r['wins']}/{r['n']} | {'accepted' if r['accepted'] else 'rejected'} |")
         lines += ["", f"Final feature set for {task}: `{json.dumps(_spec_summary(final), sort_keys=True)}`", ""]
     return "\n".join(lines)
+
+
+# ---- M4: model families and limited tuning on the frozen M3 feature sets -------------------
+
+FAMILIES = [
+    ("m4_linsvm", dict(model="linsvm"), "linear SVM: hinge loss is often stronger than log-loss on sparse TF-IDF"),
+    ("m4_cnb", dict(model="cnb", class_weight=None),
+     "Complement NB: cheap, designed for imbalanced text; no class weights"),
+]
+# Regularisation grids per family; the first entry of each list is the strongest regularisation
+# (simplest model) and the plan's default value is in the grid.
+GRIDS = {"logreg": ("C", [0.1, 0.3, 1, 3, 10]), "linsvm": ("C", [0.1, 0.3, 1, 3, 10]),
+         "cnb": ("alpha", [3, 1, 0.3, 0.1, 0.03])}
+TFIDF_STEPS = [("min_df2", {"min_df": 2}), ("sublinear", {"sublinear_tf": True})]
+
+
+def one_se_choice(means: list[float], stds: list[float], n: int = 15) -> int:
+    """One-standard-error rule: the simplest candidate (lowest index) whose mean is within one
+    standard error of the best mean, where the error is that of the best candidate's folds."""
+    best = int(np.argmax(means))
+    bar = means[best] - stds[best] / np.sqrt(n)
+    return next(i for i, m in enumerate(means) if m >= bar)
+
+
+def _log_scores(log: pd.DataFrame, task: str, name: str) -> list[float]:
+    return fold_scores(log, exp_id(task, name))
+
+
+def _ensure(task: str, spec: dict, dev: pd.DataFrame | None) -> None:
+    """Run and log a spec when ``dev`` is given; check a logged row still matches the spec."""
+    eid = exp_id(task, spec["name"])
+    if dev is not None and eid not in set(read_log().exp_id):
+        run_experiment(task, spec, dev)
+    logged = read_log().loc[lambda d: d.exp_id == eid]
+    if logged.empty:
+        raise KeyError(f"experiment {eid} is not in the log")
+    stale = {k: v for k, v in row_identity(spec).items() if logged.iloc[0][k] != v}
+    if stale or logged.iloc[0]["model"] != spec["model"]:
+        raise ValueError(f"logged {eid} does not match the current M4 chain: {stale}")
+
+
+def resolve_m4(task: str, dev: pd.DataFrame | None = None) -> dict:
+    """Stage A compares model families with the M3 final spec under the acceptance rule;
+    stage B tunes the regularisation strength of the surviving family (one-standard-error rule),
+    then tries min_df=2 and sublinear_tf one at a time under the acceptance rule."""
+    _, base = resolve_axes(task)
+    base = dict(base)
+    families, chosen, best_gain = [], base, 0.0
+    for key, change, hypothesis in FAMILIES:
+        spec = dict(base, name=key, notes=f"M4 family: {hypothesis}", params={}, **change)
+        _ensure(task, spec, dev)
+        res = compare(_log_scores(read_log(), task, base["name"]), _log_scores(read_log(), task, key))
+        families.append(dict(candidate=key, vs=base["name"], **res))
+        if res["accepted"] and res["mean_delta"] > best_gain:
+            chosen, best_gain = spec, res["mean_delta"]
+    param, grid = GRIDS[chosen["model"]]
+    family = chosen["model"]
+    grid_specs = []
+    for value in grid:
+        name = f"m4_{family}_{param}{value}"
+        spec = dict(chosen, name=name, params={param: value}, notes=f"M4 tuning: {param}={value} on {family}")
+        _ensure(task, spec, dev)
+        grid_specs.append(spec)
+    log = read_log()
+    scores = [_log_scores(log, task, s["name"]) for s in grid_specs]
+    means = [float(np.mean(v)) for v in scores]
+    stds = [float(np.std(v, ddof=1)) for v in scores]
+    pick = one_se_choice(means, stds)
+    tuning = [dict(value=v, mean=m, std=sd, folds=sc) for v, m, sd, sc in zip(grid, means, stds, scores)]
+    winner = grid_specs[pick]
+    steps = []
+    for label, option in TFIDF_STEPS:
+        tfidf = {**winner.get("tfidf", {}), **option}
+        spec = dict(winner, name=f"{winner['name']}+{label}", tfidf=tfidf,
+                    notes=f"M4 tuning: {label} on {winner['name']}")
+        _ensure(task, spec, dev)
+        res = compare(_log_scores(read_log(), task, winner["name"]), _log_scores(read_log(), task, spec["name"]))
+        steps.append(dict(candidate=spec["name"], vs=winner["name"], **res))
+        if res["accepted"]:
+            winner = spec
+    final = compare(_log_scores(read_log(), task, base["name"]), _log_scores(read_log(), task, winner["name"]))
+    return dict(base=base, families=families, family=family, param=param, tuning=tuning,
+                picked=grid[pick], tfidf_steps=steps, final=winner, final_vs_base=final)
+
+
+def m4_markdown(results: dict[str, dict]) -> str:
+    lines = ["# Model families and limited tuning (development CV only)", "",
+             "Same 3 x 5 grouped CV, same rule: mean paired Macro-F1 gain >= "
+             f"{MIN_DELTA} and gain in >= {MIN_WINS} of 15 folds. Features are the frozen M3 sets.", ""]
+    for task, r in results.items():
+        lines += [f"## {task}", "", f"Reference (M3 final): `{r['base']['name']}`", "",
+                  "### Stage A - model families", "",
+                  "| candidate | vs | mean gain | folds won | decision |", "|---|---|---|---|---|"]
+        for s in r["families"]:
+            lines.append(f"| {s['candidate']} | {s['vs']} | {s['mean_delta']:+.4f} | {s['wins']}/{s['n']} | "
+                         f"{'accepted' if s['accepted'] else 'rejected'} |")
+        lines += ["", f"Family carried to tuning: `{r['family']}`", "",
+                  f"### Stage B - {r['param']} grid (one-standard-error rule, simplest first)", "",
+                  f"| {r['param']} | mean Macro-F1 | std |", "|---|---|---|"]
+        for t in r["tuning"]:
+            mark = " **(picked)**" if t["value"] == r["picked"] else ""
+            lines.append(f"| {t['value']}{mark} | {t['mean']:.4f} | {t['std']:.4f} |")
+        lines += ["", "| tf-idf option | vs | mean gain | folds won | decision |", "|---|---|---|---|---|"]
+        for s in r["tfidf_steps"]:
+            lines.append(f"| {s['candidate']} | {s['vs']} | {s['mean_delta']:+.4f} | {s['wins']}/{s['n']} | "
+                         f"{'accepted' if s['accepted'] else 'rejected'} |")
+        f = r["final_vs_base"]
+        lines += ["", f"Tuned configuration `{r['final']['name']}` vs M3 reference: {f['mean_delta']:+.4f} mean, "
+                      f"{f['wins']}/{f['n']} folds ({'passes' if f['accepted'] else 'does not pass'} the acceptance rule).", ""]
+    return "\n".join(lines)
+
+
+# ---- M4: out-of-fold predictions and error analysis ----------------------------------------
+
+def oof_predictions(spec: dict, dev: pd.DataFrame, task: str, repeat: int = 0) -> pd.DataFrame:
+    """Predict every development row once, from a model fitted on the other four folds of one
+    CV repeat. Returns rid, true label, predicted label (and the top class probability when the
+    model has one)."""
+    y = dev[TASKS[task]].to_numpy()
+    X = dev["text"].to_numpy()
+    folds = dev[split.CV_COLUMNS[repeat]].to_numpy()
+    pred = np.empty(len(dev), dtype=object)
+    score = np.full(len(dev), np.nan)
+    for k in sorted(set(folds)):
+        valid = folds == k
+        model = clone(build_pipeline(spec)).fit(X[~valid], y[~valid])
+        pred[valid] = model.predict(X[valid])
+        if hasattr(model, "predict_proba"):
+            score[valid] = model.predict_proba(X[valid]).max(axis=1)
+    return pd.DataFrame(dict(rid=dev["rid"].to_numpy(), y=y, pred=pred, score=score))
+
+
+def per_class_table(oof: pd.DataFrame, labels: list[str]) -> pd.DataFrame:
+    from sklearn.metrics import precision_recall_fscore_support
+    p, r, f, support = precision_recall_fscore_support(oof.y, oof.pred, labels=labels, zero_division=0)
+    return pd.DataFrame(dict(label=labels, precision=p, recall=r, f1=f, support=support))
+
+
+def confusion(oof: pd.DataFrame, labels: list[str]) -> pd.DataFrame:
+    from sklearn.metrics import confusion_matrix
+    return pd.DataFrame(confusion_matrix(oof.y, oof.pred, labels=labels), index=labels, columns=labels)
+
+
+def error_markdown(task: str, spec: dict, oof: pd.DataFrame) -> str:
+    labels = LABELS[task]
+    table = per_class_table(oof, labels)
+    macro = float(table.f1.mean())
+    lines = [f"## {task}", "", f"Model: `{spec['name']}` ({spec['model']}), repeat 0 out-of-fold predictions "
+             f"on {len(oof)} development reviews; Macro-F1 {macro:.4f}, accuracy {(oof.y == oof.pred).mean():.4f}, "
+             f"errors {(oof.y != oof.pred).sum()}.", "",
+             "| class | precision | recall | F1 | support |", "|---|---|---|---|---|"]
+    for r in table.itertuples():
+        lines.append(f"| {r.label} | {r.precision:.3f} | {r.recall:.3f} | {r.f1:.3f} | {r.support} |")
+    lines += ["", "Confusion matrix (rows = true, columns = predicted):", "",
+              "| true \ pred | " + " | ".join(labels) + " |", "|---" * (len(labels) + 1) + "|"]
+    cm = confusion(oof, labels)
+    for label in labels:
+        lines.append(f"| {label} | " + " | ".join(str(int(v)) for v in cm.loc[label]) + " |")
+    return "\n".join(lines) + "\n"

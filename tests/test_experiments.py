@@ -230,3 +230,46 @@ def test_resolve_axes_follows_accepted_winner_and_rejects_stale_rows(tmp_path, m
     # chain and are reported as stale instead of being silently reused
     with pytest.raises(ValueError, match="a3_symbols_separate"):
         experiments.resolve_axes("sentiment")
+
+
+# ---- M4 ----
+
+@pytest.mark.parametrize("model,params", [("linsvm", {"C": 0.3}), ("cnb", {"alpha": 0.3}), ("logreg", {"C": 3})])
+def test_model_families_build_and_learn(model, params):
+    dev = toy_dev()
+    spec = dict(name="t", model=model, representation="word11", normalisation="none",
+                class_weight=None if model == "cnb" else "balanced", params=params, notes="")
+    res = experiments.cv_scores(spec, dev, "sentiment")
+    assert len(res["f1"]) == 15 and np.mean(res["f1"]) > 0.65  # toy data has no neutral class: the cap is 2/3
+
+
+def test_cnb_rejects_class_weight_and_tfidf_options_reach_the_vectorizer():
+    with pytest.raises(ValueError):
+        features.build_pipeline(dict(model="cnb", class_weight="balanced"))
+    pipe = features.build_pipeline(dict(model="linsvm", representation="word11+char25",
+                                        tfidf={"min_df": 2, "sublinear_tf": True}))
+    for _, vec in pipe.named_steps["features"].transformer_list:
+        assert vec.min_df == 2 and vec.sublinear_tf
+
+
+def test_tfidf_option_is_part_of_the_logged_identity():
+    plain = experiments._spec("a", "linsvm")
+    tuned = dict(plain, tfidf={"min_df": 2})
+    assert experiments.row_identity(plain)["params"] != experiments.row_identity(tuned)["params"]
+    assert "tfidf" not in experiments.row_identity(plain)["params"]  # old log rows stay valid
+
+
+def test_one_standard_error_rule_prefers_the_simplest_close_candidate():
+    means, stds = [0.80, 0.84, 0.85, 0.845, 0.83], [0.02] * 5  # SE = 0.02 / sqrt(15) ~ 0.0052
+    assert experiments.one_se_choice(means, stds) == 2          # only the best is within the bar
+    assert experiments.one_se_choice([0.846, 0.848, 0.85], [0.03] * 3) == 0  # SE 0.0077: simplest wins
+
+
+def test_oof_predictions_cover_each_row_once_and_use_other_folds():
+    dev = toy_dev().assign(rid=lambda d: np.arange(len(d)))
+    spec = experiments.REGISTRY[2]
+    oof = experiments.oof_predictions(spec, dev, "sentiment")
+    assert sorted(oof.rid) == list(range(len(dev))) and oof.pred.notna().all()
+    table = experiments.per_class_table(oof, experiments.LABELS["sentiment"])
+    assert table.support.sum() == len(dev)
+    assert "| class |" in experiments.error_markdown("sentiment", spec, oof)
