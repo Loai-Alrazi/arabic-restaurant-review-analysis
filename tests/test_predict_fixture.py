@@ -5,10 +5,12 @@ of synthetic reviews gives two small pipelines with the same structure and a min
 """
 
 import json
+import platform
 import sys
 from pathlib import Path
 
 import joblib
+import numpy
 import pytest
 
 from arabic_reviews import config, features, predict as predict_module
@@ -51,7 +53,8 @@ def tiny_models(tmp_path, monkeypatch):
         pipe = features.build_pipeline(SPEC).fit(texts, [row[column] for row in TEXTS])
         joblib.dump(pipe, models_dir / f"{task}.joblib")
     card = dict(
-        versions={"scikit-learn": sklearn.__version__},
+        versions={"scikit-learn": sklearn.__version__, "numpy": numpy.__version__, "joblib": joblib.__version__,
+                  "python": platform.python_version()},
         tasks=dict(sentiment=_task_card("sentiment", ["ايجابي", "سلبي"]),
                    aspect=_task_card("aspect", ["القهوة", "الخدمة", "الاسعار"])),
         joint_test_accuracy=0.7,
@@ -88,15 +91,26 @@ def test_same_input_same_output(tiny_models):
 def test_long_text_and_version_notes(tiny_models):
     assert "long_text" in predict("القهوة جيدة والخدمة سريعة. " * 5).notes
     card = predict_module.model_card()
+    assert "library_version" not in predict("القهوة جيدة").notes  # card made with the installed libraries
+    card["versions"]["pandas"] = "0.0.0"
+    assert "library_version" not in predict("القهوة جيدة").notes  # pandas plays no part at inference
+    card["versions"]["python"] = "2.7.18"
+    assert "library_version" in predict("القهوة جيدة").notes
+    card["versions"]["python"] = predict_module.platform.python_version()
     card["versions"]["numpy"] = "0.0.0"
     assert "library_version" in predict("القهوة جيدة").notes
 
 
-@pytest.mark.parametrize("text", ["ﻗﻬﻮﺓ ﻣﻤﺘﺎﺯﺓ", "ﺍﻟﺨﺪﻣﺔ ﺳﻴﺌﺔ ﺟﺪﺍ", "القهوة ﻣﻤﺘﺎﺯﺓ"])
+@pytest.mark.parametrize("text", ["ﻗﻬﻮﺓ ﻣﻤﺘﺎﺯﺓ", "ﺍﻟﺨﺪﻣﺔ ﺳﻴﺌﺔ ﺟﺪﺍ"])
 def test_presentation_forms_are_refused(text):
     with pytest.raises(InvalidReview) as err:
         check_review(text)
     assert err.value.code == "unreadable" and err.value.message
+
+
+@pytest.mark.parametrize("text", ["القهوة ممتازة﻿", "ما شاء ﷲ القهوة ممتازة", "القهوة ممتازة ﺟﺪﺍ"])
+def test_a_few_display_glyphs_beside_plain_text_are_accepted(tiny_models, text):
+    assert predict(text)
 
 
 def test_input_the_models_cannot_read_is_refused(tiny_models):

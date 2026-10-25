@@ -34,9 +34,11 @@ MAX_CHARS = 1000
 MIN_ARABIC_SHARE = 0.5
 
 ARABIC_LETTER_RE = re.compile("[ء-غف-يٱ-ۓۺ-ۿ]")
-# Arabic Presentation Forms-A/B: display-only glyphs that the saved pipelines (no normalisation) do not map to
-# the plain letters, so such text would reach the model as unknown characters.
-PRESENTATION_FORMS_RE = re.compile(r"[ﭐ-﷿ﹰ-﻿]")
+# Arabic Presentation Forms-A/B letters: display-only glyphs that the saved pipelines (no normalisation) do not
+# map to the plain letters, so they reach the model as unknown characters. U+FEFF (zero-width mark) is not one.
+PRESENTATION_FORMS_RE = re.compile(r"[ﭐ-﷿ﹰ-﻾]")
+# Library versions that decide how a saved pipeline loads and computes (pandas only builds the training tables).
+RUNTIME_LIBRARIES = ("scikit-learn", "numpy", "joblib")
 
 
 def _arabic_count(text: str) -> int:
@@ -96,8 +98,8 @@ def check_review(text) -> str:
     text = text.strip()
     if len(text) > MAX_CHARS:
         raise InvalidReview("too_long")
-    if PRESENTATION_FORMS_RE.search(text):
-        raise InvalidReview("unreadable")
+    if len(PRESENTATION_FORMS_RE.findall(text)) > len(ARABIC_LETTER_RE.findall(text)):
+        raise InvalidReview("unreadable")  # mostly display forms; a few shaped letters beside plain text are harmless
     arabic = _arabic_count(text)
     letters = sum(ch.isalpha() for ch in unicodedata.normalize("NFKC", text))
     if arabic == 0 or letters == 0 or arabic / letters < MIN_ARABIC_SHARE:
@@ -134,18 +136,16 @@ def certainty_level(score: float, thresholds: dict[str, float]) -> str:
 
 
 def library_mismatch(card: dict) -> bool:
-    """True when an installed library differs from the version the card was built with."""
-    for name, built in card["versions"].items():
-        if name == "python":
-            same = ".".join(platform.python_version().split(".")[:2]) == ".".join(built.split(".")[:2])
-        else:
-            try:
-                same = metadata.version(name) == built
-            except metadata.PackageNotFoundError:
-                same = False
+    """True when an installed runtime library (or the Python minor version) differs from the card's."""
+    for name in RUNTIME_LIBRARIES:
+        try:
+            same = metadata.version(name) == card["versions"][name]
+        except (metadata.PackageNotFoundError, KeyError):
+            same = False
         if not same:
             return True
-    return False
+    python = lambda v: ".".join(v.split(".")[:2])
+    return python(platform.python_version()) != python(card["versions"].get("python", platform.python_version()))
 
 
 def _task_result(pipeline, text: str, spec: dict) -> TaskResult:

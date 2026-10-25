@@ -30,7 +30,7 @@ FINAL_JSON = config.REPORTS_DIR / "final_test.json"
 FINAL_MD = config.REPORTS_DIR / "final_test.md"
 MODELS_DIR = config.ROOT / "models"
 SCRATCH_DIR = config.ROOT / ".local" / "scratch"  # per-row predictions with texts stay local
-LOCAL_DIGESTS = config.ROOT / ".local" / "model_digests.json"  # git-ignored: dev-probability digests of the saved models
+DIGESTS_FILE = config.REPORTS_DIR / "model_digests.json"  # tracked: digests of the saved models' development probabilities
 LOCAL_ACCESS_LOG = config.ROOT / ".local" / "test_access_log.json"  # git-ignored copy of the access log
 LOCK_FILE = SCRATCH_DIR / "final.lock"
 # Fingerprint of reports/final_protocol.md as merged before M5; a regenerated protocol cannot replace it.
@@ -269,12 +269,13 @@ def dev_digest(pipeline, texts) -> str:
 
 def record_digests(digests: dict, path=None) -> bool | None:
     """Store the digests on first use (None); afterwards report whether they are unchanged. Never overwrites."""
-    path = path or LOCAL_DIGESTS
+    path = path or DIGESTS_FILE
     if not path.exists():
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(json.dumps(digests, indent=1), encoding="utf-8")
+        stored = dict(versions=dict(protocol.library_versions(), joblib=joblib.__version__), digests=digests)
+        path.write_text(json.dumps(stored, indent=1) + "\n", encoding="utf-8", newline="\n")
         return None
-    return json.loads(path.read_text(encoding="utf-8")) == digests
+    return json.loads(path.read_text(encoding="utf-8"))["digests"] == digests
 
 
 def evaluate(test: pd.DataFrame, predicted: dict, p: dict) -> dict:
