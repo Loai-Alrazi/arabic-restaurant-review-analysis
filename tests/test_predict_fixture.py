@@ -158,3 +158,10 @@ def test_app_smoke(tiny_models):
     assert not at.exception and at.warning
     at.text_area[0].set_value("ﺍﻟﺨﺪﻣﺔ ﺳﻴﺌﺔ ﺟﺪﺍ").run()
     assert not at.exception and at.warning
+
+
+def test_presentation_form_pattern_matches_letters_only():
+    import unicodedata
+
+    hits = [c for c in map(chr, range(0xFB50, 0xFF00)) if predict_module.PRESENTATION_FORMS_RE.match(c)]
+    assert hits and all(unicodedata.category(c) == "Lo" for c in hits)
