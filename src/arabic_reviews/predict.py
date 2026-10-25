@@ -3,7 +3,10 @@
 The saved pipelines contain every text transformation, so the text goes in as
 the user typed it. Only input validation happens here, before the models.
 Certainty levels are words for bands of the top class probability; the
-thresholds are read from ``models/model_card.json``.
+thresholds are read from the model card of the chosen version:
+``models/model_card.json`` (version 1, one threshold pair per task) or
+``models/model_card_v2.json`` (version 2, thresholds per predicted class,
+where a level may not exist for a class).
 """
 
 from __future__ import annotations
@@ -24,6 +27,8 @@ from . import config
 
 MODELS_DIR = config.ROOT / "models"
 CARD_FILE = MODELS_DIR / "model_card.json"
+CARD_FILE_V2 = MODELS_DIR / "model_card_v2.json"
+VERSIONS = ("v1", "v2")
 
 # The development texts have 4-357 characters (99% under 204). A review needs
 # at least two Arabic letters, and anything beyond 1000 characters (about
@@ -90,6 +95,7 @@ class Prediction:
     sentiment: TaskResult
     aspect: TaskResult
     notes: list[str] = field(default_factory=list)
+    version: str = "v1"
 
 
 def check_review(text) -> str:
@@ -110,30 +116,72 @@ def check_review(text) -> str:
     return text
 
 
-@lru_cache(maxsize=1)
-def model_card() -> dict:
-    return json.loads(CARD_FILE.read_text(encoding="utf-8"))
+REBUILD = {"v1": "python -m arabic_reviews final --check", "v2": "python -m arabic_reviews v2-build"}
 
 
-@lru_cache(maxsize=1)
-def load_models() -> dict:
-    """Load both saved pipelines; fail clearly when they were not rebuilt."""
-    card = model_card()
+def _card_file(version: str):
+    if version not in VERSIONS:
+        raise ValueError(f"unknown model version: {version}")
+    return CARD_FILE if version == "v1" else CARD_FILE_V2
+
+
+@lru_cache(maxsize=2)
+def _card(version: str) -> dict:
+    return json.loads(_card_file(version).read_text(encoding="utf-8"))
+
+
+def model_card(version: str = "v1") -> dict:
+    """The model card of a version (cached: ``model_card()`` and ``model_card("v1")`` are one object)."""
+    return _card(version)
+
+
+@lru_cache(maxsize=2)
+def _models(version: str) -> dict:
+    card = model_card(version)
     models = {}
     for task in TASKS:
         path = config.ROOT / card["tasks"][task]["file"]
         if not path.exists():
-            raise FileNotFoundError(f"{path.name} is missing; rebuild it with: python -m arabic_reviews final --check")
+            raise FileNotFoundError(f"{path.name} is missing; rebuild it with: {REBUILD[version]}")
         models[task] = joblib.load(path)
     return models
 
 
-def certainty_level(score: float, thresholds: dict[str, float]) -> str:
-    if score >= thresholds["high"]:
+def load_models(version: str = "v1") -> dict:
+    """Load both saved pipelines of a version (cached); fail clearly when they were not rebuilt."""
+    return _models(version)
+
+
+model_card.cache_clear = _card.cache_clear
+load_models.cache_clear = _models.cache_clear
+
+
+def available_versions() -> list[str]:
+    """Versions whose model card and saved pipelines are all present."""
+    out = []
+    for version in VERSIONS:
+        path = _card_file(version)
+        if path.exists():
+            card = json.loads(path.read_text(encoding="utf-8"))
+            if all((config.ROOT / card["tasks"][task]["file"]).exists() for task in TASKS):
+                out.append(version)
+    return out
+
+
+def certainty_level(score: float, thresholds: dict[str, float | None]) -> str:
+    """Level of a score; a level whose threshold is None does not exist (version 2, per class)."""
+    if thresholds.get("high") is not None and score >= thresholds["high"]:
         return "high"
-    if score >= thresholds["medium"]:
+    if thresholds.get("medium") is not None and score >= thresholds["medium"]:
         return "medium"
     return "low"
+
+
+def thresholds_for(spec: dict, label: str) -> dict[str, float | None]:
+    certainty = spec["certainty"]
+    if "thresholds_by_class" in certainty:
+        return certainty["thresholds_by_class"][label]
+    return certainty["thresholds"]
 
 
 def library_mismatch(card: dict) -> bool:
@@ -154,7 +202,7 @@ def _task_result(pipeline, text: str, spec: dict) -> TaskResult:
     order = proba.argsort()[::-1]
     classes = list(pipeline.classes_)
     top = float(proba[order[0]])
-    level = certainty_level(top, spec["certainty"]["thresholds"])
+    level = certainty_level(top, thresholds_for(spec, classes[order[0]]))
     second = level != "high"
     return TaskResult(
         label=classes[order[0]],
@@ -165,14 +213,14 @@ def _task_result(pipeline, text: str, spec: dict) -> TaskResult:
     )
 
 
-def predict(text: str, models: dict | None = None) -> Prediction:
+def predict(text: str, models: dict | None = None, version: str = "v1") -> Prediction:
     """Score one review. Raises ``InvalidReview`` for input outside the accepted range.
 
     ``models`` maps each task to a fitted pipeline of the saved configuration; by default the saved
-    pipelines are loaded. Thresholds and notes always come from the model card."""
+    pipelines of ``version`` are loaded. Thresholds and notes always come from that version's model card."""
     text = check_review(text)
-    card = model_card()
-    models = load_models() if models is None else models
+    card = model_card(version)
+    models = load_models(version) if models is None else models
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
         if any(pipeline[:-1].transform([text]).nnz == 0 for pipeline in models.values()):
@@ -186,17 +234,20 @@ def predict(text: str, models: dict | None = None) -> Prediction:
         notes.append("very_short")
     if library_mismatch(card):
         notes.append("library_version")
-    return Prediction(sentiment=sentiment, aspect=aspect, notes=notes)
+    return Prediction(sentiment=sentiment, aspect=aspect, notes=notes, version=version)
 
 
 def _main(argv: list[str]) -> int:
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(encoding="utf-8")  # a piped stdout on Windows is not UTF-8
-    if not argv:
-        print('usage: python -m arabic_reviews.predict "review text"')
+    version = "v1"
+    if argv[:1] == ["--version"] and len(argv) > 1:
+        version, argv = argv[1], argv[2:]
+    if not argv or version not in VERSIONS:
+        print('usage: python -m arabic_reviews.predict [--version v1|v2] "review text"')
         return 2
     try:
-        r = predict(" ".join(argv))
+        r = predict(" ".join(argv), version=version)
     except InvalidReview as err:
         print(err.message)
         return 1
