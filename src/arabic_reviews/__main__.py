@@ -48,7 +48,23 @@ def cmd_eda() -> None:
     print(f"wrote {config.EDA_REPORT.relative_to(config.ROOT)} and {config.FIGURES_DIR.relative_to(config.ROOT)}/")
 
 
-COMMANDS = {"ingest": cmd_ingest, "validate": cmd_validate, "split": cmd_split, "eda": cmd_eda}
+def cmd_experiments() -> None:
+    from .experiments import ABLATIONS_FILE, AXIS1_CHAIN, axis_markdown, read_log, run_pending
+
+    new = run_pending()
+    ABLATIONS_FILE.write_text(
+        "# Feature-engineering ablations (development CV only)\n\n"
+        + axis_markdown(read_log(), "Axis 1 - representation", AXIS1_CHAIN) + "\n",
+        encoding="utf-8", newline="\n",
+    )
+    print(new[["exp_id", "cv_macro_f1_mean", "cv_macro_f1_std", "fit_seconds"]].to_string(index=False))
+    print(f"{len(new)} experiment(s) appended to reports/experiments.csv")
+
+
+COMMANDS = {
+    "ingest": cmd_ingest, "validate": cmd_validate, "split": cmd_split, "eda": cmd_eda,
+    "experiments": cmd_experiments,
+}
 
 
 def main(argv: list[str] | None = None) -> None:
