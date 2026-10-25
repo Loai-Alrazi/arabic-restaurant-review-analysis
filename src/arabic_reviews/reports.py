@@ -9,6 +9,8 @@ import hashlib
 import json
 from pathlib import Path
 
+import pandas as pd
+
 from . import config
 from .validate import ValidationResult
 
@@ -134,3 +136,136 @@ def quality_markdown(result: ValidationResult, source_sha256: str, validated_sha
         "",
     ]
     return "\n".join(out)
+
+
+def write_split_outputs(data, result, validated_sha256: str) -> dict:
+    """Write split_v1.csv, near_duplicates.csv and split.md (published) plus the local
+    dev.csv/test.csv text files; return the SHA-256 of every file written."""
+    from . import split as sp
+
+    a = result.assignment
+    config.SPLITS_DIR.mkdir(parents=True, exist_ok=True)
+    a.to_csv(config.SPLIT_FILE, index=False, lineterminator="\n")
+    result.pairs.to_csv(config.NEAR_DUPLICATES_FILE, index=False, lineterminator="\n")
+    full = data.drop(columns=["dup_group_size"], errors="ignore").merge(a, on="rid", validate="one_to_one")
+    dev = full[full.partition == "dev"].drop(columns=["partition"])
+    test = full[full.partition == "test"].drop(columns=["partition", *sp.CV_COLUMNS])
+    dev.to_csv(config.DEV_FILE, index=False, encoding="utf-8", lineterminator="\n")
+    test.to_csv(config.TEST_FILE, index=False, encoding="utf-8", lineterminator="\n")
+    checks = sp.leakage_checks(data, a, result.pairs)
+    props = sp.proportions(data, a)
+    _write_text(config.SPLIT_REPORT, split_markdown(full, result, checks, props, validated_sha256))
+    files = (config.SPLIT_FILE, config.NEAR_DUPLICATES_FILE, config.SPLIT_REPORT, config.DEV_FILE, config.TEST_FILE)
+    return {p.name: hashlib.sha256(p.read_bytes()).hexdigest() for p in files}
+
+
+def _pair_rules(pairs, threshold: float):
+    return pairs.copy_rule.where(pairs.cosine < threshold, "cosine")
+
+
+def split_markdown(full, result, checks: dict, props, validated_sha256: str) -> str:
+    from . import split as sp
+
+    sizes = full.groupby("group_id").size()
+    size_counts = sizes.value_counts().sort_index()
+    pairs = result.pairs
+    out = [
+        "# Split report",
+        "",
+        "Written by `python -m arabic_reviews split` (deterministic; no timestamps).",
+        "",
+        f"- Input: `data/processed/validated.csv` — SHA-256 `{validated_sha256}` — {len(full)} rows",
+        "- Output: `data/splits/split_v1.csv` (published, no text: `rid, group_id, partition, "
+        + ", ".join(sp.CV_COLUMNS) + "`), `reports/near_duplicates.csv` (pairs by rid);"
+        " `data/processed/dev.csv` and `test.csv` stay local.",
+        "",
+        "## 1. Near-duplicate grouping (label-free)",
+        "",
+        "Keys: `text.dedup_key`. The linking rules never read labels. Two reviews are linked when any rule fires:",
+        "",
+        f"1. **cosine** ≥ {sp.SIM_THRESHOLD:.2f} on character 3–5-gram TF-IDF (`char_wb`, sublinear tf) fitted on all"
+        " validated texts (a quality step; it feeds nothing in model selection);",
+        "2. **form**: identical keys once spaces and a leading و/ف/ب and article ال on each word are removed;",
+        f"3. **edit**: character edit ratio ≥ {sp.EDIT_RATIO} on space-free keys (pairs with cosine ≥ {sp.EDIT_MIN_COSINE});",
+        f"4. **chars**: ≥ {sp.CHAR_CONTAINMENT:.0%} of the shorter key's character 4-grams occur in the other key;",
+        f"5. **words**: ≥ {sp.WORD_OVERLAP:.0%} of the shorter key's words matched in order by runs of ≥ 2 words, or a"
+        f" common run of ≥ {sp.COMMON_RUN_WORDS} consecutive words.",
+        "",
+        f"Rules 3–5 apply only when the shorter key has ≥ {sp.CONTAIN_MIN_WORDS} words. Groups are connected components"
+        " (union-find); `group_id` is the smallest `rid` in the group.",
+        "",
+        "Pairs per cosine band (all row pairs):",
+        "",
+        "| cosine | " + " | ".join(result.similarity_bands) + " |",
+        "|---" * (len(result.similarity_bands) + 1) + "|",
+        "| pairs | " + " | ".join(str(v) for v in result.similarity_bands.values()) + " |",
+        "",
+        "How the rules were chosen: sampled pairs in every band from 0.60 to 1.00 were read together with their"
+        " labels; the linking algorithm itself is label-free.",
+        "",
+        "- **≥ 0.80**: the same review copied with a few words cut or added (for example rids 681/785, 436/1336,"
+        " 446/1346, 569/607), or the same short stock phrase. Linking stock phrases is conservative.",
+        "- **Below 0.80** cosine mixes reviews that only share vocabulary with copies that symmetric cosine"
+        " misses: fragments of a longer review (rid 364 is the tail of 407 and 1311), copies with glued words"
+        " or different line breaks, and re-spaced or one-word-edited copies. Rules 2–5 link these. A recurring"
+        " source pattern is the same review with the aspect word swapped (248/249 coffee/sweets, 407/1311,"
+        " 759/1658); these are linked, since for sentiment they are the same text.",
+        "- **Short phrases**: 2–3-word phrases that differ only in clitics or spacing ('good coffee' vs 'the good"
+        " coffee') have the same bare key and are linked by the `form` rule. Phrases that differ in their content"
+        " word are not linked (rids 149/1863, 'quiet and beautiful place' vs 'quiet and tidy place'); new reviews"
+        " contain such phrases too, so they are part of the task rather than copies.",
+        "- **Template families are only partly linked**: the `words` rule needs 80% of the shorter text matched, so a"
+        " 5-word template with one word swapped is linked while a 4-word one is not. A few such pairs may fall into"
+        " different CV folds (a small optimism in development scores) or across the partition boundary.",
+        "- **Over-linking**: a shared closing phrase or a stock phrase can join two otherwise unrelated reviews;"
+        " this keeps both in one partition and costs only a little stratification freedom.",
+        "- **Limits of the leakage checks**: the counts below test the linking itself and are true by construction;"
+        " the independent test in `tests/test_split.py` uses measures that are special cases of the rules."
+        " Residual copies that no rule links cannot be excluded without reading the held-out texts, which is not done.",
+        "",
+        "Linked pairs by rule (cosine first, otherwise the first copy rule that fired): "
+        + ", ".join(f"{k} {v}" for k, v in sorted(_pair_rules(pairs, sp.SIM_THRESHOLD).value_counts().items()))
+        + ".",
+        "",
+        f"Result: {len(pairs)} linked pairs, {len(sizes)} groups, of which {int((sizes > 1).sum())} have more than"
+        f" one row ({int(sizes[sizes > 1].sum())} rows). Largest group: {int(sizes.max())} rows.",
+        "",
+        "| group size | " + " | ".join(str(k) for k in size_counts.index) + " |",
+        "|---" * (len(size_counts) + 1) + "|",
+        "| groups | " + " | ".join(str(v) for v in size_counts.values) + " |",
+        "",
+        "Groups with more than one label value are kept whole; their rows keep their own labels.",
+        f" Groups with mixed aspect: {int((full.groupby('group_id').aspect.nunique() > 1).sum())};"
+        f" mixed sentiment: {int((full.groupby('group_id').sentiment.nunique() > 1).sum())}.",
+        "",
+        "## 2. Partitions and CV folds",
+        "",
+        f"`StratifiedGroupKFold(n_splits={sp.N_SPLITS}, shuffle=True, random_state={sp.SPLIT_SEED})` on"
+        f" `aspect|sentiment` with `group_id`; fold {sp.TEST_FOLD} is the held-out **test** partition."
+        f" Inside dev, the same splitter with seeds {', '.join(map(str, sp.CV_SEEDS))} gives"
+        f" {len(sp.CV_SEEDS)} repeats of {sp.N_SPLITS}-fold CV (`-1` for test rows).",
+        "",
+        f"- dev: **{int((full.partition == 'dev').sum())}** rows · test: **{int((full.partition == 'test').sum())}**"
+        f" rows ({(full.partition == 'test').mean() * 100:.1f}%)",
+        "",
+        "| task | label | dev % | test % | diff (pp) |",
+        "|---|---|---|---|---|",
+    ]
+    for r in props.itertuples():
+        out.append(f"| {r.task} | {r.label} | {r.dev_pct:.2f} | {r.test_pct:.2f} | {r.diff_pp:.2f} |")
+    out += ["", f"Largest difference: {props.diff_pp.max():.2f} pp (acceptance: ≤ 2 pp).", ""]
+    dev = full[full.partition == "dev"]
+    joint = dev.aspect + "|" + dev.sentiment
+    out += ["| repeat | fold sizes | smallest joint cell per fold |", "|---|---|---|"]
+    for col in sp.CV_COLUMNS:
+        fold_sizes = dev.groupby(col).size()
+        smallest = pd.crosstab(dev[col], joint).min(axis=1)
+        out.append(f"| `{col}` | {' / '.join(map(str, fold_sizes))} | {' / '.join(map(str, smallest))} |")
+    out += ["", "## 3. Leakage checks (all must be 0)", "", "| check | count |", "|---|---|"]
+    out += [f"| {k} | {v} |" for k, v in checks.items()]
+    out += [
+        "",
+        "The test partition is written to a local file but is not read by any analysis or experiment"
+        " code before the one-shot final evaluation (milestone M5); experiments use `split.load_dev()`.",
+    ]
+    return "\n".join(out) + "\n"
