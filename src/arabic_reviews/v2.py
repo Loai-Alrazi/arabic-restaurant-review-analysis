@@ -965,7 +965,11 @@ def model_card_v2(r: dict, p: dict, specs: dict, digests: dict, dev: pd.DataFram
             configuration=p["configurations"][task], same_as_v1=(task == "aspect" or r["released"] == "V1"),
             dev_digest=digests[task],
             certainty=dict(thresholds_by_class=r["certainty"][task]["thresholds"],
-                           outer_levels=r["certainty"][task]["outer_levels"]),
+                           outer_levels=r["certainty"][task]["outer_levels"],
+                           v1_thresholds=r["certainty"][task]["v1_thresholds"],
+                           v1_rule_outer_levels=r["certainty"][task]["v1_rule_outer_levels"],
+                           measured_on="outer folds (seeds 300-302) of the development partition, every review "
+                                       "three times; frequencies observed on development data, not guarantees"),
             cv=(dict(selection=sel[r["released"]], outer=r["outer_scores"][r["released"]])
                 if task == "sentiment" else r["aspect"]),
         ) for task in specs},
