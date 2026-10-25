@@ -52,5 +52,7 @@ def ingest(raw_file: Path = config.RAW_FILE, manifest_file: Path = config.MANIFE
     if manifest_file.exists() and not downloaded:
         retrieved = json.loads(manifest_file.read_text(encoding="utf-8")).get("retrieved")
     manifest = dict(config.SOURCE, retrieved=retrieved or date.today().isoformat(), verified=True)
-    manifest_file.write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    manifest_file.write_text(
+        json.dumps(manifest, ensure_ascii=False, indent=2) + "\n", encoding="utf-8", newline="\n"
+    )
     return manifest

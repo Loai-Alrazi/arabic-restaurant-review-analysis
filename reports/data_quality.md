@@ -3,7 +3,7 @@
 Written by `python -m arabic_reviews validate` (deterministic; no timestamps).
 
 - Source: `cleaned01_fixed.xlsx` — DOI `10.5281/zenodo.17781916` — SHA-256 `f171ef057abcae5946106534c8ef26cc9ef32a9d94fb8ec3e1843898f8f6d901`
-- Output: `data/processed/validated.csv` (local only) — SHA-256 `3ca3a3079d904c86e5e9f67eff2558851e5efc183e05d4dcc79621c48a0f08f5`
+- Output: `data/processed/validated.csv` (local only) — SHA-256 `66b938be391f8755fff4c638226eeb5fc09475863301b67c2d7faa62357b05d5`
 - Rows: raw **3000** → validated **2769**
 
 ## Lineage (repair and exclusion steps)
@@ -11,10 +11,10 @@ Written by `python -m arabic_reviews validate` (deterministic; no timestamps).
 | # | step | reason | before | modified | excluded | after |
 |---|---|---|---|---|---|---|
 | 1 | `strip_label_suffix` | label strings glued to the end of the text (CSV-merge artefact) | 3000 | 511 | 0 | 3000 |
-| 2 | `strip_translation` | platform translation marker and Latin-only leading/trailing lines | 3000 | 125 | 0 | 3000 |
+| 2 | `strip_translation` | platform translation marker and Latin-only leading/trailing paragraphs | 3000 | 122 | 0 | 3000 |
 | 3 | `clean_whitespace` | invisible/control characters, repeated spaces, blank lines | 3000 | 962 | 0 | 3000 |
 | 4 | `exclude_no_arabic` | empty or no Arabic letters after repair | 3000 | 0 | 0 | 3000 |
-| 5 | `deduplicate` | one representative per duplicate group (copies) | 3000 | 0 | 217 | 2783 |
+| 5 | `deduplicate` | one representative per duplicate group; labels by per-task majority | 3000 | 2 | 217 | 2783 |
 | 6 | `deduplicate_ties` | duplicate groups whose labels tie in a task | 2783 | 0 | 14 | 2769 |
 
 Reconciliation: 3000 raw = 2769 kept + 0 no_arabic_text + 217 duplicate_copy + 14 duplicate_group_label_tie.
@@ -24,9 +24,9 @@ Reconciliation: 3000 raw = 2769 kept + 0 no_arabic_text + 217 duplicate_copy + 1
 | check | raw | validated |
 |---|---|---|
 | embedded_label_suffix | 511 | 0 |
-| delimited_label_anywhere | 511 | 0 |
+| delimiter_label_scan | 511 | 0 |
 | translation_marker | 9 | 0 |
-| latin_letters | 145 | 21 |
+| latin_letters | 145 | 24 |
 | no_arabic_letters | 0 | 0 |
 | invisible_characters | 11 | 0 |
 | control_characters | 0 | 0 |
@@ -50,8 +50,12 @@ by ablation inside the training pipeline.
 
 - Embedded label strings disagreeing with the official label: **26** (4 aspect, 22 sentiment). Logged as label noise; the official labels are kept.
 - Duplicate groups: **162**; excluded for a label tie: **7**; labels changed by per-task majority: **2**.
-- Every other kept record carries its source label unchanged (checked on every run).
-- Residual delimiter-wrapped label strings after repair: **0**.
+- Every other kept record carries its source label unchanged; labels, group sizes and the
+  kept/excluded partition are recomputed from the source on every run.
+- Aspect-only suffixes removed (`:aspect`, audited in `lineage.json`): **4**.
+- Translation paragraphs removed that contained pasted Arabic aspect words (audited): **4**.
+- Residual label strings after repair (end-anchored pattern / delimiter scan anywhere): **0 / 0**.
+- Known residual noise left as is: Latin words inside Arabic sentences or bilingual lines written by the reviewer, and one spreadsheet cell reference inside a text.
 
 ## Label distribution — raw
 

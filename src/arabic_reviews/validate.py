@@ -17,32 +17,36 @@ import pandas as pd
 from . import config
 from .text import DIACRITICS_RE, INVISIBLE_RE, LETTER_RUN_RE, NEGATIONS, TATWEEL, dedup_key
 
-_ASPECT_ALT = "المأكولات|المشروبات|الخدمة|الجلسات|ال[اأ]سعار"
-_SENTIMENT_ALT = "[اإ]يجابي|سلب[يى]|محايد"
-# A label string glued to the END of the text: ";aspect;sentiment", ":aspect", ...
-# No space is allowed after the delimiter, which keeps natural "...: الخدمة" intact.
+# Spelling variants seen in pasted label strings (hamza, ta marbuta, alef maqsura).
+_ASPECT_ALT = "ال(?:م[أا]كولات|مشروبات|خدم[ةه]|جلسات|[اأ]سعار)"
+_SENTIMENT_ALT = "[اأإ]يجاب[يى]|سلب[يى]|محايد"
+_DELIM = "[;:؛]"
+_TRAILING = r"[\s.،,!]*$"
+# A label string glued to the END of the text. The two-part form ";aspect;sentiment"
+# is unambiguous, so spaces around delimiters are allowed. The aspect-only form
+# ":aspect" allows no space after the delimiter, which keeps natural "...: الخدمة"
+# intact; aspect-only removals are logged for audit.
 LABEL_SUFFIX_RE = re.compile(
-    rf"\s*[;:؛](?P<aspect>{_ASPECT_ALT})(?:[;:؛](?P<sentiment>{_SENTIMENT_ALT}))?[\s.]*$"
+    rf"\s*{_DELIM}(?:\s*(?P<aspect2>{_ASPECT_ALT})\s*{_DELIM}\s*(?P<sentiment>{_SENTIMENT_ALT})"
+    rf"|(?P<aspect1>{_ASPECT_ALT})){_TRAILING}"
 )
-# Scan for any delimiter-wrapped label anywhere in the text (must find nothing after repair).
-LABEL_ANYWHERE_RE = re.compile(
-    rf"[;:؛](?:{_ASPECT_ALT})(?:[;:؛]|\s*$)|[;:؛](?:{_SENTIMENT_ALT})\s*$"
-)
+# Broader scan: a delimiter followed by any label word, anywhere in the text.
+LABEL_SCAN_RE = re.compile(rf"{_DELIM}\s*(?:{_ASPECT_ALT}|{_SENTIMENT_ALT})(?![\u0621-\u064a])")
 TRANSLATION_MARKER_RE = re.compile(r"\(\s*تمت الترجمة بواسطة Google\s*\.?\s*\)?\s*")
-ARABIC_LETTER_RE = re.compile("[ء-يٱ-ۓ]")
-LATIN_LETTER_RE = re.compile("[A-Za-zÀ-ɏḀ-ỿ]")
+PARAGRAPH_SEP_RE = re.compile(r"(\n[^\S\n]*\n\s*)")
+ARABIC_LETTER_RE = re.compile("[\u0621-\u064a\u0671-\u06d3]")
+LATIN_LETTER_RE = re.compile("[A-Za-z\u00c0-\u024f\u1e00-\u1eff]")
 ASPECT_WORD_RE = re.compile(_ASPECT_ALT)
 CONTROL_RE = re.compile(r"[\x00-\x09\x0b-\x1f\x7f-\x9f]")
 
+_SPELLING = str.maketrans({"أ": "ا", "إ": "ا", "ة": "ه", "ى": "ي"})
+_CANONICAL = {
+    label.translate(_SPELLING): label for label in (*config.ASPECTS, *config.SENTIMENTS)
+}
 
-def _canonical_aspect(word: str) -> str:
-    return "الاسعار" if word in ("الأسعار", "الاسعار") else word
 
-
-def _canonical_sentiment(word: str | None) -> str | None:
-    if word is None:
-        return None
-    return {"إيجابي": "ايجابي", "سلبى": "سلبي"}.get(word, word)
+def _canonical(word: str | None) -> str | None:
+    return None if word is None else _CANONICAL[word.translate(_SPELLING)]
 
 
 def strip_label_suffix(text: str) -> tuple[str, str | None, str | None]:
@@ -54,46 +58,39 @@ def strip_label_suffix(text: str) -> tuple[str, str | None, str | None]:
     m = LABEL_SUFFIX_RE.search(text)
     if not m:
         return text, None, None
-    return text[: m.start()], _canonical_aspect(m["aspect"]), _canonical_sentiment(m["sentiment"])
+    return text[: m.start()], _canonical(m["aspect2"] or m["aspect1"]), _canonical(m["sentiment"])
 
 
 def has_arabic(text: str) -> bool:
     return bool(ARABIC_LETTER_RE.search(text))
 
 
-def _is_latin_line(line: str) -> bool:
+def _is_latin_paragraph(par: str) -> bool:
     # Aspect words were pasted into some English translations ("Overالاسعارd."),
     # so they do not count as Arabic content.
-    return bool(LATIN_LETTER_RE.search(line)) and not has_arabic(ASPECT_WORD_RE.sub("", line))
+    return bool(LATIN_LETTER_RE.search(par)) and not has_arabic(ASPECT_WORD_RE.sub("", par))
 
 
 def strip_translation(text: str) -> str:
-    """Remove platform translations: the Google translation marker and leading or
-    trailing Latin-only lines (with the blank lines around them), but only when
-    Arabic text remains."""
+    """Remove platform translations: the Google translation marker and Latin-only
+    leading/trailing paragraphs. A paragraph boundary (blank line) is required, as in
+    the platform's translation layout, and Arabic text must remain; bilingual lines
+    written by the reviewer inside a paragraph are kept."""
     text = TRANSLATION_MARKER_RE.sub("", text)
-    lines = text.split("\n")
-    if len(lines) < 2:
-        return text
-    start, end = 0, len(lines)
-    # Advance past leading Latin/blank lines; cut there only if a Latin line was skipped.
-    i = 0
-    while i < end and (_is_latin_line(lines[i]) or not lines[i].strip()):
-        if _is_latin_line(lines[i]):
-            start = i + 1
-        i += 1
-    j = end
-    while j > start and (_is_latin_line(lines[j - 1]) or not lines[j - 1].strip()):
-        if _is_latin_line(lines[j - 1]):
-            end = j - 1
-        j -= 1
-    if (start, end) == (0, len(lines)) or not any(has_arabic(line) for line in lines[start:end]):
-        return text
-    while start < end and not lines[start].strip():
+    parts = PARAGRAPH_SEP_RE.split(text)  # [par, sep, par, sep, ...]
+    pars = parts[0::2]
+    start, end = 0, len(pars)
+    while start < end and _is_latin_paragraph(pars[start]):
         start += 1
-    while end > start and not lines[end - 1].strip():
+    while end > start and _is_latin_paragraph(pars[end - 1]):
         end -= 1
-    return "\n".join(lines[start:end])
+    if (start, end) == (0, len(pars)) or not any(has_arabic(p) for p in pars[start:end]):
+        return text
+    return "".join(parts[2 * start : 2 * end - 1])
+
+
+def arabic_letter_count(text: str) -> int:
+    return len(ARABIC_LETTER_RE.findall(text))
 
 
 def clean_whitespace(text: str) -> str:
@@ -139,7 +136,7 @@ def _has_negation(text: str) -> bool:
 
 QUALITY_CHECKS = {
     "embedded_label_suffix": lambda t: bool(LABEL_SUFFIX_RE.search(t)),
-    "delimited_label_anywhere": lambda t: bool(LABEL_ANYWHERE_RE.search(t)),
+    "delimiter_label_scan": lambda t: bool(LABEL_SCAN_RE.search(t)),
     "translation_marker": lambda t: bool(TRANSLATION_MARKER_RE.search(t)),
     "latin_letters": lambda t: bool(LATIN_LETTER_RE.search(t)),
     "no_arabic_letters": lambda t: not has_arabic(t),
@@ -206,9 +203,10 @@ def _majority(labels: list[str]) -> str | None:
 
 REPAIR_STEPS = (
     ("strip_label_suffix", "label strings glued to the end of the text (CSV-merge artefact)"),
-    ("strip_translation", "platform translation marker and Latin-only leading/trailing lines"),
+    ("strip_translation", "platform translation marker and Latin-only leading/trailing paragraphs"),
     ("clean_whitespace", "invisible/control characters, repeated spaces, blank lines"),
 )
+TASKS = ("aspect", "sentiment")
 
 
 def run_validation(raw: pd.DataFrame, expected_rows: int = config.EXPECTED_ROWS) -> ValidationResult:
@@ -217,7 +215,15 @@ def run_validation(raw: pd.DataFrame, expected_rows: int = config.EXPECTED_ROWS)
     df.insert(0, "rid", range(len(df)))  # 0-based data-row index in the source sheet
     source = df.copy()
     profile_raw = profile(df)
-    steps, logs = [], {"embedded_label_conflicts": [], "label_resolutions": [], "duplicate_groups": []}
+    steps = []
+    logs = {
+        "embedded_label_conflicts": [],
+        "aspect_only_suffix_rids": [],
+        "translation_removed_arabic_rids": [],
+        "label_resolutions": [],
+        "duplicate_groups": [],
+        "excluded_rids": {},
+    }
 
     def record(name, reason, before, modified=0, excluded=0):
         steps.append(
@@ -235,6 +241,8 @@ def run_validation(raw: pd.DataFrame, expected_rows: int = config.EXPECTED_ROWS)
     # 1. Embedded label strings: removed; disagreements with the official label logged only.
     stripped = df.text.map(strip_label_suffix)
     for row, (_, emb_aspect, emb_sentiment) in zip(df.itertuples(), stripped):
+        if emb_aspect is not None and emb_sentiment is None:
+            logs["aspect_only_suffix_rids"].append(row.rid)
         for task, emb, official in (("aspect", emb_aspect, row.aspect), ("sentiment", emb_sentiment, row.sentiment)):
             if emb is not None and emb != official:
                 logs["embedded_label_conflicts"].append(
@@ -244,23 +252,29 @@ def run_validation(raw: pd.DataFrame, expected_rows: int = config.EXPECTED_ROWS)
     record(*REPAIR_STEPS[0], len(df), (new != df.text).sum())
     df["text"] = new
 
-    # 2-3. Translation segments, whitespace and invisible characters.
-    for (name, reason), fn in zip(REPAIR_STEPS[1:], (strip_translation, clean_whitespace)):
-        new = df.text.map(fn)
-        record(name, reason, len(df), (new != df.text).sum())
-        df["text"] = new
+    # 2. Translation segments. Rows where a removed paragraph held Arabic letters other
+    #    than the platform marker (aspect words pasted into a translation) are logged.
+    new = df.text.map(strip_translation)
+    lost = df.text.map(lambda t: arabic_letter_count(TRANSLATION_MARKER_RE.sub("", t))) > new.map(arabic_letter_count)
+    logs["translation_removed_arabic_rids"] = df.rid[lost].tolist()
+    record(*REPAIR_STEPS[1], len(df), (new != df.text).sum())
+    df["text"] = new
+
+    # 3. Whitespace and invisible characters.
+    new = df.text.map(clean_whitespace)
+    record(*REPAIR_STEPS[2], len(df), (new != df.text).sum())
+    df["text"] = new
 
     # 4. Texts that are empty or contain no Arabic letter after repair.
     keep = df.text.map(has_arabic)
-    excluded = {"no_arabic_text": int((~keep).sum())}
-    logs["no_arabic_text_rids"] = df.rid[~keep].tolist()
+    logs["excluded_rids"]["no_arabic_text"] = df.rid[~keep].tolist()
     record("exclude_no_arabic", "empty or no Arabic letters after repair", len(df), excluded=(~keep).sum())
     df = df[keep]
 
     # 5. Duplicates on the aggressive key: one representative (lowest rid) per group,
     #    per-task majority label; a tie in either task excludes the whole group.
     df = df.assign(key=df.text.map(dedup_key))
-    rows, n_copy, n_tie = [], 0, 0
+    rows, copies, ties = [], [], []
     for _, grp in df.groupby("key", sort=False):
         grp = grp.sort_values("rid")
         rep = grp.iloc[0].to_dict()
@@ -269,7 +283,7 @@ def run_validation(raw: pd.DataFrame, expected_rows: int = config.EXPECTED_ROWS)
             rows.append(rep)
             continue
         rids = grp.rid.tolist()
-        resolved = {task: _majority(grp[task].tolist()) for task in ("aspect", "sentiment")}
+        resolved = {task: _majority(grp[task].tolist()) for task in TASKS}
         tie = None in resolved.values()
         logs["duplicate_groups"].append(
             {
@@ -280,9 +294,9 @@ def run_validation(raw: pd.DataFrame, expected_rows: int = config.EXPECTED_ROWS)
             }
         )
         if tie:
-            n_tie += len(grp)
+            ties += rids
             continue
-        n_copy += len(grp) - 1
+        copies += rids[1:]
         for task, label in resolved.items():
             if label != rep[task]:
                 logs["label_resolutions"].append(
@@ -290,37 +304,58 @@ def run_validation(raw: pd.DataFrame, expected_rows: int = config.EXPECTED_ROWS)
                 )
                 rep[task] = label
         rows.append(rep)
-    excluded.update(duplicate_copy=n_copy, duplicate_group_label_tie=n_tie)
-    record("deduplicate", "one representative per duplicate group (copies)", len(df), excluded=n_copy)
-    record("deduplicate_ties", "duplicate groups whose labels tie in a task", len(df) - n_copy, excluded=n_tie)
+    logs["excluded_rids"].update(duplicate_copy=sorted(copies), duplicate_group_label_tie=sorted(ties))
+    n_resolved = len({r["rid"] for r in logs["label_resolutions"]})
+    record("deduplicate", "one representative per duplicate group; labels by per-task majority",
+           len(df), modified=n_resolved, excluded=len(copies))
+    record("deduplicate_ties", "duplicate groups whose labels tie in a task", len(df) - len(copies),
+           excluded=len(ties))
     data = (
         pd.DataFrame(rows, columns=["rid", "text", "aspect", "sentiment", "dup_group_size"])
         .sort_values("rid")
         .reset_index(drop=True)
     )
 
-    _check_integrity(data, source, logs, excluded)
+    check_integrity(data, source, logs)
     lineage = {
         "raw_rows": int(len(source)),
         "validated_rows": int(len(data)),
-        "excluded_by_reason": excluded,
+        "excluded_by_reason": {k: len(v) for k, v in logs["excluded_rids"].items()},
         "steps": steps,
     }
     return ValidationResult(data, lineage, logs, profile_raw, profile(data))
 
 
-def _check_integrity(data: pd.DataFrame, source: pd.DataFrame, logs: dict, excluded: dict) -> None:
-    """Hard guarantees on the validated data; any violation aborts the run."""
-    if len(source) != len(data) + sum(excluded.values()):
-        raise AssertionError("row counts do not reconcile")
-    resolved = {(r["rid"], r["task"]): r["resolved"] for r in logs["label_resolutions"]}
+def check_integrity(data: pd.DataFrame, source: pd.DataFrame, logs: dict) -> None:
+    """Hard guarantees on the validated data, recomputed from the source labels;
+    any violation aborts the run."""
+    kept = data.rid.tolist()
+    if len(set(kept)) != len(kept):
+        raise AssertionError("duplicate rids in validated data")
+    excluded = [rid for rids in logs["excluded_rids"].values() for rid in rids]
+    if len(set(excluded)) != len(excluded) or set(kept) & set(excluded):
+        raise AssertionError("a record is excluded twice or both kept and excluded")
+    if sorted(kept + excluded) != sorted(source.rid):
+        raise AssertionError("kept + excluded records do not partition the source")
+
     src = source.set_index("rid")
+    groups = {g["rids"][0]: g["rids"] for g in logs["duplicate_groups"] if g["outcome"] == "kept_representative"}
+    resolutions = {(r["rid"], r["task"]): r for r in logs["label_resolutions"]}
     for row in data.itertuples():
-        for task in ("aspect", "sentiment"):
-            expected = resolved.get((row.rid, task), src.at[row.rid, task])
-            if getattr(row, task) != expected:
-                raise AssertionError(f"label changed for rid {row.rid} ({task})")
-    residual = data.text.map(lambda t: bool(LABEL_SUFFIX_RE.search(t) or LABEL_ANYWHERE_RE.search(t)))
+        group = groups.get(row.rid, [row.rid])
+        if row.dup_group_size != len(group) or min(group) != row.rid:
+            raise AssertionError(f"rid {row.rid}: inconsistent duplicate group")
+        for task in TASKS:
+            expected = _majority(src.loc[group, task].tolist())
+            if expected is None or getattr(row, task) != expected:
+                raise AssertionError(f"rid {row.rid}: {task} label is not the source (majority) label")
+            changed = expected != src.at[row.rid, task]
+            if changed != ((row.rid, task) in resolutions):
+                raise AssertionError(f"rid {row.rid}: {task} label change not logged exactly")
+    if len(resolutions) != len(logs["label_resolutions"]) or any(rid not in groups for rid, _ in resolutions):
+        raise AssertionError("label resolution logged for a record that is not a kept group representative")
+
+    residual = data.text.map(lambda t: bool(LABEL_SUFFIX_RE.search(t) or LABEL_SCAN_RE.search(t)))
     if residual.any():
         raise AssertionError(f"embedded label strings remain in rids {data.rid[residual].tolist()}")
     if data.text.map(dedup_key).duplicated().any():

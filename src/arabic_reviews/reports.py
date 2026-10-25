@@ -18,11 +18,17 @@ def _write_text(path: Path, content: str) -> None:
     path.write_text(content, encoding="utf-8", newline="\n")
 
 
-def write_outputs(result: ValidationResult, source_sha256: str) -> dict:
+def write_outputs(
+    result: ValidationResult,
+    source_sha256: str,
+    validated_file: Path = config.VALIDATED_FILE,
+    lineage_file: Path = config.LINEAGE_FILE,
+    quality_report: Path = config.QUALITY_REPORT,
+) -> dict:
     """Write validated.csv, lineage.json and data_quality.md; return their SHA-256."""
-    config.VALIDATED_FILE.parent.mkdir(parents=True, exist_ok=True)
-    result.data.to_csv(config.VALIDATED_FILE, index=False, encoding="utf-8", lineterminator="\n")
-    validated_sha = hashlib.sha256(config.VALIDATED_FILE.read_bytes()).hexdigest()
+    validated_file.parent.mkdir(parents=True, exist_ok=True)
+    result.data.to_csv(validated_file, index=False, encoding="utf-8", lineterminator="\n")
+    validated_sha = hashlib.sha256(validated_file.read_bytes()).hexdigest()
 
     lineage = {
         "source": {"filename": config.SOURCE["filename"], "doi": config.SOURCE["doi"], "sha256": source_sha256},
@@ -30,12 +36,11 @@ def write_outputs(result: ValidationResult, source_sha256: str) -> dict:
         **result.lineage,
         **result.logs,
     }
-    _write_text(config.LINEAGE_FILE, json.dumps(lineage, ensure_ascii=False, indent=1) + "\n")
-    _write_text(config.QUALITY_REPORT, quality_markdown(result, source_sha256, validated_sha))
+    _write_text(lineage_file, json.dumps(lineage, ensure_ascii=False, indent=1) + "\n")
+    _write_text(quality_report, quality_markdown(result, source_sha256, validated_sha))
     return {
-        "validated.csv": validated_sha,
-        "lineage.json": hashlib.sha256(config.LINEAGE_FILE.read_bytes()).hexdigest(),
-        "data_quality.md": hashlib.sha256(config.QUALITY_REPORT.read_bytes()).hexdigest(),
+        path.name: hashlib.sha256(path.read_bytes()).hexdigest()
+        for path in (validated_file, lineage_file, quality_report)
     }
 
 
@@ -108,9 +113,16 @@ def quality_markdown(result: ValidationResult, source_sha256: str, validated_sha
         "the official labels are kept.",
         f"- Duplicate groups: **{len(logs['duplicate_groups'])}**; excluded for a label tie: **{n_tie_groups}**; "
         f"labels changed by per-task majority: **{len(logs['label_resolutions'])}**.",
-        "- Every other kept record carries its source label unchanged (checked on every run).",
-        "- Residual delimiter-wrapped label strings after repair: "
-        f"**{val['rows_with']['embedded_label_suffix'] + val['rows_with']['delimited_label_anywhere']}**.",
+        "- Every other kept record carries its source label unchanged; labels, group sizes and the",
+        "  kept/excluded partition are recomputed from the source on every run.",
+        f"- Aspect-only suffixes removed (`:aspect`, audited in `lineage.json`): "
+        f"**{len(logs['aspect_only_suffix_rids'])}**.",
+        f"- Translation paragraphs removed that contained pasted Arabic aspect words (audited): "
+        f"**{len(logs['translation_removed_arabic_rids'])}**.",
+        "- Residual label strings after repair (end-anchored pattern / delimiter scan anywhere): "
+        f"**{val['rows_with']['embedded_label_suffix']} / {val['rows_with']['delimiter_label_scan']}**.",
+        "- Known residual noise left as is: Latin words inside Arabic sentences or bilingual lines"
+        " written by the reviewer, and one spreadsheet cell reference inside a text.",
         "",
         "## Label distribution — raw",
         "",

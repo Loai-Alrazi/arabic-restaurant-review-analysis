@@ -3,7 +3,8 @@
 import pandas as pd
 import pytest
 
-from arabic_reviews.validate import SchemaError, check_schema, run_validation
+from arabic_reviews.reports import write_outputs
+from arabic_reviews.validate import SchemaError, check_integrity, check_schema, run_validation
 
 
 def _raw(rows):
@@ -107,3 +108,52 @@ def test_majority_resolution_that_changes_a_label_is_logged():
     assert out.logs["label_resolutions"] == [
         {"rid": 0, "task": "sentiment", "source": "محايد", "resolved": "ايجابي", "group_rids": [0, 1, 2]}
     ]
+
+
+def _source(rows):
+    df = _raw(rows).rename(columns={"Review": "text", "Attribute": "aspect", "Result": "sentiment"})
+    df.insert(0, "rid", range(len(df)))
+    return df
+
+
+def _tamper(result, row, col, value):
+    data = result.data.copy()
+    data.loc[row, col] = value
+    return data
+
+
+def test_integrity_check_rejects_a_record_kept_twice(result):
+    data = result.data.copy()
+    data.loc[1, "rid"] = data.loc[0, "rid"]
+    with pytest.raises(AssertionError):
+        check_integrity(data, _source(GOOD), result.logs)
+
+
+def test_integrity_check_rejects_an_unlogged_label_change(result):
+    data = _tamper(result, 0, "sentiment", "سلبي")
+    with pytest.raises(AssertionError):
+        check_integrity(data, _source(GOOD), result.logs)
+
+
+def test_integrity_check_rejects_a_logged_change_that_is_not_the_majority(result):
+    data = _tamper(result, 0, "sentiment", "سلبي")
+    logs = dict(result.logs, label_resolutions=[
+        {"rid": 0, "task": "sentiment", "source": "ايجابي", "resolved": "سلبي", "group_rids": [0]}
+    ])
+    with pytest.raises(AssertionError):
+        check_integrity(data, _source(GOOD), logs)
+
+
+def test_integrity_check_rejects_a_silently_dropped_record(result):
+    with pytest.raises(AssertionError):
+        check_integrity(result.data.iloc[1:], _source(GOOD), result.logs)
+
+
+def test_written_outputs_are_byte_identical_across_runs(tmp_path):
+    hashes = []
+    for run in ("a", "b"):
+        out = run_validation(_raw(GOOD), expected_rows=len(GOOD))
+        d = tmp_path / run
+        hashes.append(write_outputs(out, "0" * 64, d / "validated.csv", d / "lineage.json", d / "quality.md"))
+    assert hashes[0] == hashes[1]
+    assert b"\r\n" not in (tmp_path / "a" / "lineage.json").read_bytes()
