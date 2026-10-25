@@ -104,13 +104,52 @@ def test_group_support_counts_distinct_groups_not_rows():
     assert t[POS]["high"] is None
 
 
-def test_drop_rule_merges_a_failing_level_into_the_next_lower_one():
-    thresholds = {POS: {"high": 0.6, "medium": 0.4}, NEG: {"high": 0.7, "medium": None}, NEU: {"high": None, "medium": None}}
-    check = [dict(label=POS, level="high", accuracy=0.86), dict(label=NEG, level="high", accuracy=0.80),
-             dict(label=POS, level="medium", accuracy=0.71)]
-    used, dropped = v2.apply_drop_rule(thresholds, check)
-    assert used[POS] == {"high": 0.6, "medium": 0.4}  # 0.86 is within 0.05 of 0.90
-    assert used[NEG] == {"high": None, "medium": 0.7} and dropped == [f"{NEG}:high"]
+def _outer(cells):
+    """(score, pred, correct, groups) from (label, score, rows, right) cells, one group per row."""
+    score, pred, correct = [], [], []
+    for label, s, n, right in cells:
+        score += [s] * n
+        pred += [label] * n
+        correct += [True] * right + [False] * (n - right)
+    return np.array(score), np.array(pred, dtype=object), np.array(correct), np.arange(len(score))
+
+
+def test_drop_rule_merges_a_failing_level_and_checks_the_merged_level_again():
+    thresholds = {POS: {"high": 0.6, "medium": 0.4}, NEG: {"high": 0.7, "medium": None}, NEU: {"high": 0.8, "medium": None}}
+    outer = _outer([(POS, 0.65, 100, 86), (POS, 0.45, 100, 71),   # within 0.05 of 90% / 70%: kept
+                    (NEG, 0.75, 100, 80),                          # high fails, merged into medium (80% >= 65%)
+                    (NEU, 0.85, 100, 50)])                         # high fails, and the merged medium fails too
+    used, dropped = v2.apply_drop_rule(thresholds, outer, L)
+    assert used[POS] == {"high": 0.6, "medium": 0.4}
+    assert used[NEG] == {"high": None, "medium": 0.7}
+    assert used[NEU] == {"high": None, "medium": None}
+    assert dropped == [f"{NEG}:high", f"{NEU}:high", f"{NEU}:medium"]
+
+
+def test_outer_level_intervals_cover_the_point_accuracy():
+    outer = _outer([(POS, 0.65, 200, 180), (NEG, 0.75, 50, 40)])
+    rows = v2.level_table(*outer, {POS: {"high": 0.6, "medium": 0.4}, NEG: {"high": 0.7, "medium": 0.5},
+                                    NEU: {"high": None, "medium": None}}, L, intervals=True)
+    for row in rows:
+        if row["rows"]:
+            assert row["interval"][0] <= row["accuracy"] <= row["interval"][1]
+        else:
+            assert row["interval"] is None
+
+
+def test_logged_rows_are_checked_field_by_field(tmp_path, monkeypatch):
+    monkeypatch.setattr(v2, "LOG_FILE", tmp_path / "experiments.csv")
+    monkeypatch.setattr(v2, "V2_DIR", tmp_path)
+    spec = dict(name="x", model="logreg", representation="word11", normalisation="none", class_weight=None, params={})
+    m = _metrics([0.6] * 15)
+    m.update(accuracy=[0.7] * 15, balanced=[0.6] * 15)
+    v2.log_row("sentiment", "x", "selection", spec, m, 1.0, L)
+    v2.log_row("sentiment", "x", "selection", spec, m, 2.0, L)  # same fields, other fit time: accepted
+    changed = dict(m, **{NEU: [0.41] + [0.4] * 14})
+    with pytest.raises(RuntimeError, match="fold metrics"):
+        v2.log_row("sentiment", "x", "selection", spec, changed, 1.0, L)
+    with pytest.raises(RuntimeError, match="notes"):
+        v2.log_row("sentiment", "x", "selection", spec, m, 1.0, L, notes="other")
 
 
 def test_paired_bootstrap_resamples_groups_once_for_all_repeats():
@@ -161,7 +200,7 @@ def test_end_to_end_on_toy_data(tmp_path, monkeypatch):
     for name in ("LOG_FILE", "RESULTS_JSON", "RESULTS_MD", "BLIND_FILE"):
         monkeypatch.setattr(v2, name, tmp_path / getattr(v2, name).name)
     monkeypatch.setattr(v2, "V2_DIR", tmp_path)
-    r = v2.run_experiments(toy_dev(), check_v1=False)
+    r = v2._run(toy_dev(), check_v1=False)
     assert r["selection"]["chosen"] in ("V1", "H1_phrases", "H2_cues", "H3_both")
     assert len(r["nested"]["paired"]["class_change"]) == 3 and sum(r["nested"]["chosen_counts"].values()) == 15
     assert r["released"] == (r["selection"]["chosen"] if r["adopted"] else "V1")
@@ -171,7 +210,7 @@ def test_end_to_end_on_toy_data(tmp_path, monkeypatch):
     assert "# Version 2" in v2.RESULTS_MD.read_text(encoding="utf-8")
     log = v2.read_log()
     assert len(log) == 11 and log.exp_id.is_unique  # 4 candidates x 2 schemes, procedure, aspect x 2
-    again = v2.run_experiments(toy_dev(), check_v1=False)  # logged rows are checked, not appended
+    again = v2._run(toy_dev(), check_v1=False)  # logged rows are checked, not appended
     assert len(v2.read_log()) == 11 and again["selection"]["chosen"] == r["selection"]["chosen"]
 
 

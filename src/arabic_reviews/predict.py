@@ -95,7 +95,6 @@ class Prediction:
     sentiment: TaskResult
     aspect: TaskResult
     notes: list[str] = field(default_factory=list)
-    version: str = "v1"
 
 
 def check_review(text) -> str:
@@ -234,7 +233,7 @@ def predict(text: str, models: dict | None = None, version: str = "v1") -> Predi
         notes.append("very_short")
     if library_mismatch(card):
         notes.append("library_version")
-    return Prediction(sentiment=sentiment, aspect=aspect, notes=notes, version=version)
+    return Prediction(sentiment=sentiment, aspect=aspect, notes=notes)
 
 
 def _main(argv: list[str]) -> int:

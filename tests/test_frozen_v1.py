@@ -1,6 +1,9 @@
 """Version 1 stays frozen: its decision log, protocol, one-shot test results and model card are
 byte-identical to the merged release, and the saved version-1 pipelines still give the recorded
-predictions (golden values recorded before version 2 changed the inference module)."""
+predictions (golden values recorded before version 2 changed the inference module).
+
+This is a version-1 integrity check: it hashes the bytes of the published files and parses none of
+them; no version-2 code or decision reads the test results."""
 
 import hashlib
 import json

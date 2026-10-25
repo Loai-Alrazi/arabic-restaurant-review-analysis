@@ -31,6 +31,7 @@ from sklearn.base import clone
 
 from . import config, cues, experiments, final, protocol, split
 from .features import build_pipeline
+from .predict import certainty_level as level_of  # the boundary rule inference applies (score >= threshold)
 
 V2_DIR = config.REPORTS_DIR / "v2"
 LOG_FILE = V2_DIR / "experiments.csv"
@@ -59,8 +60,8 @@ TARGETS = (("high", 0.90), ("medium", 0.70))
 MIN_GROUPS = 30
 EDGE_WIDTH, EDGE_SLACK = 0.10, 0.05  # a level must also hold at its lower edge (plan section 9)
 DROP_SLACK = 0.05
-EPS = protocol.EDGE_EPS
 CALIBRATION_BINS = 10
+SOURCES = ("config", "cues", "experiments", "features", "final", "predict", "protocol", "split", "text", "v2")
 LOG_COLUMNS = ["exp_id", "timestamp", "git_sha", "task", "candidate", "scheme", "features", "params",
                "macro_f1_mean", "macro_f1_std", "fold_scores", "class_f1_folds", "accuracy_mean",
                "balanced_acc_mean", "fit_seconds", "notes"]
@@ -325,7 +326,7 @@ def _groups_in(groups: np.ndarray, mask: np.ndarray) -> int:
 def _level_holds(score, correct, groups, inside, t, target) -> bool:
     if _groups_in(groups, inside) < MIN_GROUPS or correct[inside].mean() < target:
         return False
-    edge = inside & (score + EPS < t + EDGE_WIDTH)
+    edge = inside & (score < t + EDGE_WIDTH)
     return _groups_in(groups, edge) < MIN_GROUPS or correct[edge].mean() >= target - EDGE_SLACK
 
 
@@ -345,11 +346,11 @@ def class_thresholds(score: np.ndarray, pred: np.ndarray, correct: np.ndarray, g
         for level, target in TARGETS:
             found[level] = None
             for t in GRID:
-                if floor is not None and t + EPS < floor[level]:
+                if floor is not None and t < floor[level]:
                     continue
                 if t >= upper:
                     break
-                inside = own & (score + EPS >= t) & (score + EPS < upper)
+                inside = own & (score >= t) & (score < upper)
                 if _level_holds(score, correct, groups, inside, t, target):
                     found[level] = t
                     break
@@ -359,40 +360,54 @@ def class_thresholds(score: np.ndarray, pred: np.ndarray, correct: np.ndarray, g
     return out
 
 
-def level_of(score: float, thresholds: dict[str, float | None]) -> str:
-    for level in ("high", "medium"):
-        t = thresholds.get(level)
-        if t is not None and score + EPS >= t:
-            return level
-    return "low"
+def levels_of(score: np.ndarray, pred: np.ndarray, thresholds: dict) -> np.ndarray:
+    return np.array([level_of(float(s), thresholds[p]) for s, p in zip(score, pred)], dtype=object)
 
 
-def level_table(score, pred, correct, groups, thresholds: dict, labels: list[str]) -> list[dict]:
-    levels = np.array([level_of(s, thresholds[p]) for s, p in zip(score, pred)])
-    rows = []
-    for label in labels:
-        for level in ("high", "medium", "low"):
-            m = (pred == label) & (levels == level)
-            rows.append(dict(label=label, level=level, rows=int(m.sum()), groups=_groups_in(groups, m),
-                             share=float(m.mean()), accuracy=float(correct[m].mean()) if m.any() else None))
+def level_table(score, pred, correct, groups, thresholds: dict, labels: list[str], intervals: bool = False) -> list[dict]:
+    """Rows, distinct groups, share and accuracy of every (predicted class, level); with ``intervals``
+    also a 95% group-bootstrap interval of the accuracy (groups drawn once per resample for all rows)."""
+    levels = levels_of(score, pred, thresholds)
+    cells = [(label, level, (pred == label) & (levels == level)) for label in labels for level in ("high", "medium", "low")]
+    rows = [dict(label=label, level=level, rows=int(m.sum()), groups=_groups_in(groups, m), share=float(m.mean()),
+                 accuracy=float(correct[m].mean()) if m.any() else None) for label, level, m in cells]
+    if intervals:
+        _, g = np.unique(groups, return_inverse=True)
+        n_groups = g.max() + 1
+        rng = np.random.default_rng(BOOTSTRAP["seed"])
+        draws = []
+        for _ in range(BOOTSTRAP["resamples"]):
+            w = np.bincount(rng.integers(0, n_groups, n_groups), minlength=n_groups)[g].astype(float)
+            draws.append([np.sum(w[m] * correct[m]) / np.sum(w[m]) if np.sum(w[m]) > 0 else np.nan for _, _, m in cells])
+        draws = np.array(draws)
+        tail = (1 - BOOTSTRAP["level"]) / 2 * 100
+        for j, row in enumerate(rows):
+            ok = ~np.isnan(draws[:, j])
+            row["interval"] = (None if not ok.any() else
+                               [float(v) for v in np.percentile(draws[ok, j], [tail, 100 - tail])])
     return rows
 
 
-def apply_drop_rule(thresholds: dict, stability: list[dict]) -> tuple[dict, list[str]]:
-    """Merge a level into the next lower one for a class when its stability accuracy falls more than
-    0.05 below its target (pre-declared); returns the thresholds used and what was dropped."""
+def apply_drop_rule(thresholds: dict, outer: tuple, labels: list[str]) -> tuple[dict, list[str]]:
+    """Merge a level into the next lower one for a class while its accuracy on the outer folds falls more
+    than 0.05 below its target (pre-declared). After every merge the levels are measured again, so a
+    medium level made of merged high rows must itself meet the medium floor. ``outer`` = (score, pred,
+    correct, groups) of the outer folds. Returns the thresholds used and what was dropped, in order."""
     out = {label: dict(t) for label, t in thresholds.items()}
     dropped = []
     targets = dict(TARGETS)
-    for row in stability:
+    while True:
+        failing = [row for row in level_table(*outer, out, labels)
+                   if row["level"] in targets and out[row["label"]][row["level"]] is not None
+                   and row["accuracy"] is not None and row["accuracy"] < targets[row["level"]] - DROP_SLACK]
+        if not failing:
+            return out, dropped
+        row = failing[0]  # table order: high before medium within a class
         t = out[row["label"]]
-        if row["level"] in targets and t.get(row["level"]) is not None and row["accuracy"] is not None \
-                and row["accuracy"] < targets[row["level"]] - DROP_SLACK:
-            if row["level"] == "high":
-                t["medium"] = t["high"] if t.get("medium") is None else t["medium"]
-            t[row["level"]] = None
-            dropped.append(f"{row['label']}:{row['level']}")
-    return out, dropped
+        if row["level"] == "high" and t["medium"] is None:
+            t["medium"] = t["high"]
+        t[row["level"]] = None
+        dropped.append(f"{row['label']}:{row['level']}")
 
 
 # ---- calibration ----------------------------------------------------------------------------
@@ -457,19 +472,16 @@ def read_log() -> pd.DataFrame:
 
 def log_row(task: str, candidate: str, scheme: str, spec: dict | None, metrics: dict, seconds: float,
             labels: list[str], notes: str = "") -> dict:
-    """Append a row, or check that a logged row with the same id has the same fold scores."""
+    """Append a row, or check that the logged row with the same id holds the same deterministic fields
+    (specification, every fold and class metric, notes); only timestamp, commit and fit time may differ."""
     eid = f"{task}/{candidate}@{scheme}"
     folds = [round(float(v), 6) for v in metrics["macro"]]
     log = read_log()
-    logged = log.loc[log.exp_id == eid]
-    if not logged.empty:
-        before = json.loads(logged.iloc[0]["fold_scores"])
-        if len(before) != len(folds) or max(abs(a - b) for a, b in zip(before, folds)) > 1e-6:
-            raise RuntimeError(f"{eid}: recomputed fold scores differ from the logged row")
-        return logged.iloc[0].to_dict()
+    if not log.exp_id.is_unique:
+        raise RuntimeError(f"{LOG_FILE.name} holds duplicate experiment ids")
     identity = experiments.row_identity(spec) if spec else dict(features="", params="{}")
     row = dict(exp_id=eid, timestamp=datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
-               git_sha=experiments._git_sha(), task=task, candidate=candidate, scheme=scheme,
+               git_sha="", task=task, candidate=candidate, scheme=scheme,
                features=identity["features"] + ("+cues" if spec and spec.get("cues") else ""), params=identity["params"],
                macro_f1_mean=round(float(np.mean(metrics["macro"])), 4),
                macro_f1_std=round(float(np.std(metrics["macro"], ddof=1)), 4), fold_scores=json.dumps(folds),
@@ -478,16 +490,42 @@ def log_row(task: str, candidate: str, scheme: str, spec: dict | None, metrics: 
                accuracy_mean=round(float(np.mean(metrics["accuracy"])), 4),
                balanced_acc_mean=round(float(np.mean(metrics["balanced"])), 4),
                fit_seconds=round(seconds, 2), notes=notes)
+    logged = log.loc[log.exp_id == eid]
+    if not logged.empty:
+        _same_row(logged.iloc[0].to_dict(), row)
+        return logged.iloc[0].to_dict()
+    row["git_sha"] = experiments._git_sha()
     V2_DIR.mkdir(parents=True, exist_ok=True)
     pd.DataFrame([row], columns=LOG_COLUMNS).to_csv(LOG_FILE, mode="a", header=not LOG_FILE.exists(), index=False,
                                                     lineterminator="\n")
     return row
 
 
+def _same_row(logged: dict, row: dict) -> None:
+    for key in ("task", "candidate", "scheme", "features", "params", "notes"):
+        if str(logged[key]) != str(row[key]):
+            raise RuntimeError(f"{row['exp_id']}: logged {key} differs from the recomputed row")
+    for key in ("macro_f1_mean", "macro_f1_std", "accuracy_mean", "balanced_acc_mean"):
+        if abs(float(logged[key]) - float(row[key])) > 1e-4:
+            raise RuntimeError(f"{row['exp_id']}: logged {key} differs from the recomputed row")
+    a, b = json.loads(logged["fold_scores"]), json.loads(row["fold_scores"])
+    ca, cb = json.loads(logged["class_f1_folds"]), json.loads(row["class_f1_folds"])
+    pairs = [(a, b)] + [(ca[k], cb[k]) for k in cb] if ca.keys() == cb.keys() else None
+    if pairs is None or any(len(x) != len(y) or max(abs(u - v) for u, v in zip(x, y)) > 1e-6 for x, y in pairs):
+        raise RuntimeError(f"{row['exp_id']}: logged fold metrics differ from the recomputed row")
+
+
 # ---- run ------------------------------------------------------------------------------------
 
 def file_sha256(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def source_hashes() -> dict[str, str]:
+    """SHA-256 of every package module the results depend on (line endings normalised)."""
+    package = Path(__file__).resolve().parent
+    return {name: hashlib.sha256((package / f"{name}.py").read_bytes().replace(b"\r\n", b"\n")).hexdigest()
+            for name in SOURCES}
 
 
 def check_frozen_cues() -> str:
@@ -526,11 +564,14 @@ def _joint(sent: list[np.ndarray], asp: list[np.ndarray], dev: pd.DataFrame, col
     return out
 
 
-def run_experiments(dev: pd.DataFrame | None = None, check_v1: bool = True) -> dict:
-    """Every step of plan sections 2-6 on the development partition; writes ``reports/v2/``.
+def run_experiments() -> dict:
+    """Every step of plan sections 2-6 on the development partition, loaded and hashed inside the guard;
+    V1 and the aspect model must reproduce the logged version-1 fold scores. Writes ``reports/v2/``."""
+    return _run(None, check_v1=True)
 
-    ``dev`` and ``check_v1=False`` are for tests on toy data: the real run loads the development
-    partition and requires V1 and the aspect model to reproduce the logged version-1 fold scores."""
+
+def _run(dev: pd.DataFrame | None, check_v1: bool) -> dict:
+    """``run_experiments``; tests pass a toy ``dev`` and ``check_v1=False``."""
     with guard() as opened:
         cue_sha = check_frozen_cues()
         real = dev is None
@@ -600,10 +641,11 @@ def run_experiments(dev: pd.DataFrame | None = None, check_v1: bool = True) -> d
             rules = {}
             for rule, floor in (("registered", None), ("released", v1_thresholds)):
                 proposed = class_thresholds(score, pred, correct, grp, labels, floor)
-                used, dropped = apply_drop_rule(proposed, level_table(o_score, o_pred, o_correct, o_grp, proposed, labels))
+                used, dropped = apply_drop_rule(proposed, (o_score, o_pred, o_correct, o_grp), labels)
                 rules[rule] = dict(proposed=proposed, thresholds=used, dropped=dropped,
                                    selection_levels=level_table(score, pred, correct, grp, used, labels),
-                                   outer_levels=level_table(o_score, o_pred, o_correct, o_grp, used, labels))
+                                   outer_levels=level_table(o_score, o_pred, o_correct, o_grp, used, labels,
+                                                            intervals=True))
             certainty[task] = dict(
                 rules, thresholds=rules["released"]["thresholds"], outer_levels=rules["released"]["outer_levels"],
                 v1_thresholds=v1_thresholds,
@@ -619,7 +661,7 @@ def run_experiments(dev: pd.DataFrame | None = None, check_v1: bool = True) -> d
             f"{final_name}, registered per-class rule": (final_spec, certainty["sentiment"]["registered"]["thresholds"]),
             f"{final_name}, released rule": (final_spec, certainty["sentiment"]["thresholds"])})
         result = dict(
-            plan="docs/V2_PLAN.md", cues_sha256=cue_sha, git_sha=experiments._git_sha(),
+            plan="docs/V2_PLAN.md", cues_sha256=cue_sha, git_sha=experiments._git_sha(), sources=source_hashes(),
             dev=dict(rows=len(dev), sha256=file_sha256(config.DEV_FILE) if real else "toy",
                      split_sha256=file_sha256(config.SPLIT_FILE) if real else "toy",
                      class_counts={k: int(v) for k, v in dev.sentiment.value_counts().items()}),
@@ -686,6 +728,11 @@ def _signed(v) -> str:
     return f"{v:+.4f}"
 
 
+def _interval(row: dict) -> str:
+    iv = row.get("interval")
+    return f"[{iv[0]:.3f}, {iv[1]:.3f}]" if iv else ""
+
+
 def _ci(b: dict) -> str:
     return f"{_signed(b['point'])} [{b['low']:+.3f}, {b['high']:+.3f}]"
 
@@ -696,15 +743,19 @@ def results_markdown(r: dict) -> str:
     lines = ["# Version 2 - sentiment on development data only", "",
              "Plan and decision rules: `docs/V2_PLAN.md`. Every number below comes from the development partition "
              f"({r['dev']['rows']} reviews, `dev.csv` SHA-256 `{r['dev']['sha256'][:12]}...`); the old held-out test was "
-             "not opened by this run (files opened under data/, reports/, models/: "
-             + ", ".join(f"`{p}`" for p in r["inputs"]) + "). "
+             "not opened: the run's guard refuses to open it, saved test predictions and the test reports, and "
+             "recorded these openings under data/, reports/, models/: "
+             + ", ".join(f"`{p}`" for p in r["inputs"]) + " (an accidental-access check inside this process, not a "
+             "proof that nothing else could have influenced the design). "
              f"Polarity-cue file SHA-256 `{r['cues_sha256'][:12]}...` (frozen before any candidate was scored). "
              f"Commit `{r['git_sha']}`.", "",
              "**What these numbers can and cannot show.** The design of version 2 (its target, candidates and cue list) "
-             "came after reading development reviews, and the same reviews are used here. The nested CV estimates the "
-             "whole selection procedure without fold-selection optimism, and the outer folds use new seeds, but no new "
-             "reviews: the estimates are development-only and optimistic to an unknown degree. There is no independent "
-             "test for version 2, and no result is shown on the old test.", "",
+             "came after reading development reviews, and the same reviews are used here. The nested CV repeats only "
+             "the algorithmic choice among the three fixed candidates inside each outer fold; the candidates and the cue "
+             "list were designed after reading development reviews, outer validation rows included, so it does not "
+             "remove that optimism. The outer folds use new seeds, but no new reviews: every estimate is development-only "
+             "and optimistic to an unknown degree. There is no independent test for version 2, and no result is shown on "
+             "the old test.", "",
              "## 1. Diagnosis of the neutral class", ""]
     d = r["diagnosis"]
     counts = r["dev"]["class_counts"]
@@ -804,14 +855,15 @@ def results_markdown(r: dict) -> str:
         lines += ["", f"Dropped by the outer-fold check: released {', '.join(c['released']['dropped']) or 'none'}; "
                   f"registered {', '.join(reg['dropped']) or 'none'}.", "",
                   "| predicted | level | released: selection rows (groups) | accuracy | released: outer rows (groups) | accuracy "
-                  "| v1 rule: outer rows | accuracy | registered: outer rows | accuracy |",
+                  "[95% interval] | v1 rule: outer rows | accuracy | registered: outer rows | accuracy [95% interval] |",
                   "|---|---|---|---|---|---|---|---|---|---|"]
         for a, b, v, g in zip(c["released"]["selection_levels"], c["released"]["outer_levels"], c["v1_rule_outer_levels"],
                               reg["outer_levels"]):
             lines.append(f"| {a['label']} | {a['level']} | {a['rows']} ({a['groups']}) | {_f(a['accuracy'])} | "
-                         f"{b['rows']} ({b['groups']}) | {_f(b['accuracy'])} | {v['rows']} | {_f(v['accuracy'])} | "
-                         f"{g['rows']} | {_f(g['accuracy'])} |")
-        lines.append("")
+                         f"{b['rows']} ({b['groups']}) | {_f(b['accuracy'])} {_interval(b)} | {v['rows']} | "
+                         f"{_f(v['accuracy'])} | {g['rows']} | {_f(g['accuracy'])} {_interval(g)} |")
+        lines += ["", "Outer intervals: group bootstrap, 2000 resamples (seed 0), the groups drawn once per resample for all "
+                  "three repeats; a cell without rows has no interval.", ""]
     lines += ["## 5. Calibration (selection folds, pooled)", "",
               "The interface never shows probabilities; this section explains why the levels are read from measured "
               "accuracy and not from the probability itself.", "",
@@ -843,7 +895,8 @@ def protocol_v2(r: dict, specs: dict[str, dict]) -> dict:
         pipelines=pipelines,
         certainty={task: dict(score="top class probability", thresholds_by_class=r["certainty"][task]["thresholds"])
                    for task in specs},
-        cues_sha256=r["cues_sha256"], dev=r["dev"],
+        cues_sha256=r["cues_sha256"], dev=r["dev"], versions=r["versions"], sources=r["sources"],
+        results_commit=r["git_sha"],
         rules=dict(min_gain=MIN_GAIN, min_neutral_gain=MIN_NEUTRAL_GAIN, min_other_change=MIN_OTHER_CHANGE,
                    min_wins=MIN_WINS, outer_seeds=OUTER_SEEDS, grid=GRID, targets=dict(TARGETS),
                    min_groups=MIN_GROUPS, edge=[EDGE_WIDTH, EDGE_SLACK], drop_slack=DROP_SLACK),
@@ -863,10 +916,17 @@ def build() -> dict:
         if r["cues_sha256"] != cue_sha or r["dev"]["sha256"] != file_sha256(config.DEV_FILE) \
                 or r["dev"]["split_sha256"] != file_sha256(config.SPLIT_FILE):
             raise RuntimeError("results.json was computed on other data or another cue list; re-run v2-experiments")
+        if r.get("sources") != source_hashes():
+            raise RuntimeError("results.json was computed by other code; re-run v2-experiments")
+        runtime = final.runtime_versions()
+        minor = lambda v: ".".join(v.split(".")[:2])
+        if {k: v for k, v in runtime.items() if k != "python"} != {k: v for k, v in r["versions"].items() if k != "python"} \
+                or minor(runtime["python"]) != minor(r["versions"]["python"]):
+            raise RuntimeError("the installed library versions differ from those of results.json; install "
+                               "requirements.txt or re-run v2-experiments")
         frozen = frozen_specs()
         specs = {"sentiment": candidates(frozen["sentiment"])[r["released"]], "aspect": frozen["aspect"]}
         p = protocol_v2(r, specs)
-        PROTOCOL_FILE.write_text(json.dumps(p, ensure_ascii=False, indent=1) + "\n", encoding="utf-8", newline="\n")
         X = dev["text"].to_numpy()
         MODELS_DIR.mkdir(parents=True, exist_ok=True)
         digests = {}
@@ -881,8 +941,11 @@ def build() -> dict:
             if same_model and same_versions and digests[task] != recorded["digests"][task]:
                 raise RuntimeError(f"the version-2 {task} model should equal the version-1 one but its digest differs")
         card = model_card_v2(r, p, specs, digests, dev)
-        CARD_FILE.write_text(json.dumps(card, ensure_ascii=False, indent=1) + "\n", encoding="utf-8", newline="\n")
-        return dict(fingerprint=p["fingerprint"], released=r["released"], digests=digests, inputs=sorted(opened))
+        build_record = dict(inputs=sorted(opened), versions=runtime)  # not part of the fingerprint
+    PROTOCOL_FILE.write_text(json.dumps(dict(p, build=build_record), ensure_ascii=False, indent=1) + "\n",
+                             encoding="utf-8", newline="\n")
+    CARD_FILE.write_text(json.dumps(card, ensure_ascii=False, indent=1) + "\n", encoding="utf-8", newline="\n")
+    return dict(fingerprint=p["fingerprint"], released=r["released"], digests=digests, inputs=build_record["inputs"])
 
 
 def model_card_v2(r: dict, p: dict, specs: dict, digests: dict, dev: pd.DataFrame) -> dict:
@@ -908,6 +971,17 @@ def model_card_v2(r: dict, p: dict, specs: dict, digests: dict, dev: pd.DataFram
         ) for task in specs},
         nested_vs_v1=dict(gain=r["nested"]["bootstrap"]["macro"], neutral=r["nested"]["bootstrap"][NEUTRAL],
                           chosen_counts=r["nested"]["chosen_counts"]),
+        experiment=dict(
+            chosen_on_selection_folds=r["selection"]["chosen"], adopted=r["adopted"],
+            candidates={name: dict(selection_macro_f1=s["macro"]["mean"], selection_neutral_f1=s["per_class"][NEUTRAL],
+                                   outer_macro_f1=r["outer_scores"][name]["macro"]["mean"],
+                                   outer_neutral_f1=r["outer_scores"][name]["per_class"][NEUTRAL])
+                        for name, s in sel.items()},
+            stability_vs_v1=(None if r["stability"] is None else
+                             dict(gain=r["stability"]["bootstrap"]["macro"], neutral=r["stability"]["bootstrap"][NEUTRAL])),
+            rule="adopted only if the nested CV estimate of the whole selection procedure gains >= 0.01 Macro-F1 "
+                 "with a 95% interval above 0, a positive neutral F1 change and no positive or negative F1 drop "
+                 "larger than 0.02 (docs/V2_PLAN.md section 5)"),
         joint_accuracy=r["joint_accuracy"],
         input=dict(development_length_chars=dict(min=int(lengths.min()), median=float(lengths.median()),
                                                  p99=float(lengths.quantile(0.99)), max=int(lengths.max()))),

@@ -34,7 +34,7 @@ def with_v2(tiny_models, monkeypatch):  # noqa: F811
 def test_a_level_without_threshold_never_appears(with_v2):
     _write_v2_card(with_v2, {"ايجابي": {"high": None, "medium": None}, "سلبي": {"high": 0.0, "medium": 0.0}})
     r = predict("القهوة ممتازة والطعم رائع", version="v2")
-    assert r.version == "v2" and r.sentiment.label == "ايجابي"
+    assert r.sentiment.label == "ايجابي"
     assert r.sentiment.level == "low" and r.sentiment.second_label is not None
     bad = predict("القهوة سيئة والطعم مر", version="v2")
     assert bad.sentiment.label == "سلبي" and bad.sentiment.level == "high"
@@ -43,7 +43,6 @@ def test_a_level_without_threshold_never_appears(with_v2):
 def test_version_1_is_the_default_and_keeps_its_thresholds(with_v2):
     _write_v2_card(with_v2, {"ايجابي": {"high": None, "medium": None}, "سلبي": {"high": None, "medium": None}})
     r = predict("القهوة ممتازة والطعم رائع")
-    assert r.version == "v1"
     card = predict_module.model_card()
     assert r.sentiment.level == certainty_level(r.sentiment.score, card["tasks"]["sentiment"]["certainty"]["thresholds"])
 
