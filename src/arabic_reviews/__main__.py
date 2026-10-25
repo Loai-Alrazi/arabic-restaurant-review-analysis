@@ -66,9 +66,40 @@ def cmd_experiments() -> None:
     print(f"{len(read_log()) - before} experiment(s) appended; {len(read_log())} rows in reports/experiments.csv")
 
 
+def cmd_models() -> None:
+    from .experiments import (ERROR_CATEGORIES_FILE, ERRORS_FILE, MODELS_FILE, TASKS, categories_markdown,
+                              error_markdown, m4_markdown, oof_predictions, read_log, resolve_m4)
+    from .split import load_dev
+
+    dev = load_dev()
+    before = len(read_log())
+    results = {task: resolve_m4(task, dev) for task in TASKS}
+    MODELS_FILE.write_text(m4_markdown(results), encoding="utf-8", newline="\n")
+    scratch = config.ROOT / ".local" / "scratch"
+    scratch.mkdir(parents=True, exist_ok=True)
+    parts = ["# Out-of-fold error analysis (development partition)\n"]
+    for task, r in results.items():
+        oof = oof_predictions(r["final"], dev, task)
+        parts.append(error_markdown(task, r["final"], oof))
+        oof.merge(dev[["rid", "text"]], on="rid").query("y != pred").to_csv(
+            scratch / f"oof_errors_{task}.csv", index=False, encoding="utf-8")
+    cats = pd.read_csv(ERROR_CATEGORIES_FILE, keep_default_na=False)
+    parts.append(categories_markdown(cats, {task: r["final"]["name"] for task, r in results.items()}))
+    ERRORS_FILE.write_text("\n".join(parts), encoding="utf-8", newline="\n")
+    print(f"{len(read_log()) - before} experiment(s) appended; wrote {MODELS_FILE.name} and {ERRORS_FILE.name}")
+
+
+def cmd_protocol() -> None:
+    from .protocol import PROTOCOL_JSON, PROTOCOL_MD, build_protocol, write_protocol
+
+    protocol = build_protocol()
+    write_protocol(protocol)
+    print(f"fingerprint {protocol['fingerprint']}; wrote {PROTOCOL_MD.name} and {PROTOCOL_JSON.name}")
+
+
 COMMANDS = {
     "ingest": cmd_ingest, "validate": cmd_validate, "split": cmd_split, "eda": cmd_eda,
-    "experiments": cmd_experiments,
+    "experiments": cmd_experiments, "models": cmd_models, "protocol": cmd_protocol,
 }
 
 

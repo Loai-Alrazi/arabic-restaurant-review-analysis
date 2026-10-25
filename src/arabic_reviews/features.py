@@ -9,12 +9,15 @@ from sklearn.base import BaseEstimator, TransformerMixin
 from sklearn.dummy import DummyClassifier
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.linear_model import LogisticRegression
+from sklearn.naive_bayes import ComplementNB
 from sklearn.pipeline import FeatureUnion, Pipeline
 from sklearn.preprocessing import StandardScaler
+from sklearn.svm import LinearSVC
 
 from . import text
 
 NORMALIZERS = {"none": {}, "light": text.LIGHT, "full": text.FULL}
+LINEAR_MODELS = ("logreg", "linsvm", "cnb")
 REPRESENTATIONS = ("word11", "word12", "char25", "word11+char25")
 
 
@@ -66,24 +69,25 @@ class TextStats(BaseEstimator, TransformerMixin):
 SYMBOL_TOKEN_PATTERN = r"(?u)\b\w\w+\b|[^\w\s]"
 
 
-def _vectorizer(kind: str, symbol_tokens: bool = False) -> TfidfVectorizer:
+def _vectorizer(kind: str, symbol_tokens: bool = False, tfidf: dict | None = None) -> TfidfVectorizer:
     pattern = {"token_pattern": SYMBOL_TOKEN_PATTERN} if symbol_tokens else {}
+    tfidf = tfidf or {}  # min_df / sublinear_tf, applied to every vectorizer of the representation
     if kind == "word11":
-        return TfidfVectorizer(analyzer="word", ngram_range=(1, 1), **pattern)
+        return TfidfVectorizer(analyzer="word", ngram_range=(1, 1), **pattern, **tfidf)
     if kind == "word12":
-        return TfidfVectorizer(analyzer="word", ngram_range=(1, 2), **pattern)
+        return TfidfVectorizer(analyzer="word", ngram_range=(1, 2), **pattern, **tfidf)
     if kind == "char25":
-        return TfidfVectorizer(analyzer="char_wb", ngram_range=(2, 5))
+        return TfidfVectorizer(analyzer="char_wb", ngram_range=(2, 5), **tfidf)
     raise ValueError(f"unknown representation: {kind}")
 
 
-def _features(representation: str, symbol_tokens: bool = False):
+def _features(representation: str, symbol_tokens: bool = False, tfidf: dict | None = None):
     if representation not in REPRESENTATIONS:
         raise ValueError(f"unknown representation: {representation}")
     parts = representation.split("+")
     if len(parts) == 1:
-        return _vectorizer(parts[0], symbol_tokens)
-    return FeatureUnion([(p, _vectorizer(p, symbol_tokens)) for p in parts])
+        return _vectorizer(parts[0], symbol_tokens, tfidf)
+    return FeatureUnion([(p, _vectorizer(p, symbol_tokens, tfidf)) for p in parts])
 
 
 def _normalizer(spec: dict) -> Normalizer:
@@ -99,11 +103,18 @@ def build_pipeline(spec: dict) -> Pipeline:
         return Pipeline([("clf", DummyClassifier(strategy="most_frequent"))])
     if model == "dummy_stratified":
         return Pipeline([("clf", DummyClassifier(strategy="stratified", random_state=0))])
-    if model == "logreg":
-        clf = LogisticRegression(
-            max_iter=2000, class_weight=spec.get("class_weight"), random_state=0, **params
-        )
-        features = _features(spec.get("representation", "word11"), spec.get("symbols") == "separate")
+    if model in LINEAR_MODELS:
+        weight = spec.get("class_weight")
+        if model == "logreg":
+            clf = LogisticRegression(max_iter=2000, class_weight=weight, random_state=0, **params)
+        elif model == "linsvm":
+            clf = LinearSVC(class_weight=weight, random_state=0, max_iter=10000, **params)
+        else:  # Complement NB has no class weights: it re-weights the complement statistics itself
+            if weight is not None:
+                raise ValueError("cnb does not take class_weight")
+            clf = ComplementNB(**params)
+        features = _features(spec.get("representation", "word11"), spec.get("symbols") == "separate",
+                             spec.get("tfidf"))
         if spec.get("textstats"):
             # statistics come from the raw text, so they are computed beside the text branch
             text_branch = Pipeline([("normalize", _normalizer(spec)), ("features", features)])
