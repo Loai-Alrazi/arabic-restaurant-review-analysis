@@ -1,0 +1,16 @@
+{
+  "title": "Arabic Café Reviews (Multi-Aspect Sentiment Analysis of Arabic Café Reviews)",
+  "creator": "Hmood Al-Dossari",
+  "record": "https://zenodo.org/records/17781916",
+  "doi": "10.5281/zenodo.17781916",
+  "version": "1",
+  "publication_date": "2025-12-01",
+  "license": "CC-BY-4.0",
+  "filename": "cleaned01_fixed.xlsx",
+  "url": "https://zenodo.org/records/17781916/files/cleaned01_fixed.xlsx?download=1",
+  "size_bytes": 125720,
+  "md5": "9b546b96eb7d16a374f648b4dc840d59",
+  "sha256": "f171ef057abcae5946106534c8ef26cc9ef32a9d94fb8ec3e1843898f8f6d901",
+  "retrieved": "2026-10-25",
+  "verified": true
+}

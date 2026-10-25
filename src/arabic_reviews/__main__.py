@@ -1,0 +1,42 @@
+"""Command line: ``python -m arabic_reviews <step>``."""
+
+from __future__ import annotations
+
+import argparse
+import json
+
+import pandas as pd
+
+from . import config
+
+
+def cmd_ingest() -> None:
+    from .ingest import ingest
+
+    manifest = ingest()
+    print(f"verified {manifest['filename']} sha256={manifest['sha256']} -> {config.MANIFEST_FILE.name}")
+
+
+def cmd_validate() -> None:
+    from .ingest import verify_file
+    from .reports import write_outputs
+    from .validate import run_validation
+
+    fp = verify_file(config.RAW_FILE, config.SOURCE)
+    raw = pd.read_excel(config.RAW_FILE, sheet_name=0, dtype=object, engine="openpyxl")
+    result = run_validation(raw)
+    hashes = write_outputs(result, fp["sha256"])
+    print(json.dumps({"lineage": result.lineage["excluded_by_reason"], "sha256": hashes}, indent=1))
+
+
+COMMANDS = {"ingest": cmd_ingest, "validate": cmd_validate}
+
+
+def main(argv: list[str] | None = None) -> None:
+    parser = argparse.ArgumentParser(prog="arabic_reviews")
+    parser.add_argument("step", choices=sorted(COMMANDS))
+    COMMANDS[parser.parse_args(argv).step]()
+
+
+if __name__ == "__main__":
+    main()

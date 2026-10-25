@@ -1,0 +1,2440 @@
+{
+ "source": {
+  "filename": "cleaned01_fixed.xlsx",
+  "doi": "10.5281/zenodo.17781916",
+  "sha256": "f171ef057abcae5946106534c8ef26cc9ef32a9d94fb8ec3e1843898f8f6d901"
+ },
+ "output": {
+  "file": "data/processed/validated.csv",
+  "rows": 2769,
+  "sha256": "3ca3a3079d904c86e5e9f67eff2558851e5efc183e05d4dcc79621c48a0f08f5"
+ },
+ "raw_rows": 3000,
+ "validated_rows": 2769,
+ "excluded_by_reason": {
+  "no_arabic_text": 0,
+  "duplicate_copy": 217,
+  "duplicate_group_label_tie": 14
+ },
+ "steps": [
+  {
+   "step": 1,
+   "name": "strip_label_suffix",
+   "reason": "label strings glued to the end of the text (CSV-merge artefact)",
+   "rows_before": 3000,
+   "rows_modified": 511,
+   "rows_excluded": 0,
+   "rows_after": 3000
+  },
+  {
+   "step": 2,
+   "name": "strip_translation",
+   "reason": "platform translation marker and Latin-only leading/trailing lines",
+   "rows_before": 3000,
+   "rows_modified": 125,
+   "rows_excluded": 0,
+   "rows_after": 3000
+  },
+  {
+   "step": 3,
+   "name": "clean_whitespace",
+   "reason": "invisible/control characters, repeated spaces, blank lines",
+   "rows_before": 3000,
+   "rows_modified": 962,
+   "rows_excluded": 0,
+   "rows_after": 3000
+  },
+  {
+   "step": 4,
+   "name": "exclude_no_arabic",
+   "reason": "empty or no Arabic letters after repair",
+   "rows_before": 3000,
+   "rows_modified": 0,
+   "rows_excluded": 0,
+   "rows_after": 3000
+  },
+  {
+   "step": 5,
+   "name": "deduplicate",
+   "reason": "one representative per duplicate group (copies)",
+   "rows_before": 3000,
+   "rows_modified": 0,
+   "rows_excluded": 217,
+   "rows_after": 2783
+  },
+  {
+   "step": 6,
+   "name": "deduplicate_ties",
+   "reason": "duplicate groups whose labels tie in a task",
+   "rows_before": 2783,
+   "rows_modified": 0,
+   "rows_excluded": 14,
+   "rows_after": 2769
+  }
+ ],
+ "embedded_label_conflicts": [
+  {
+   "rid": 64,
+   "task": "sentiment",
+   "embedded": "سلبي",
+   "official": "ايجابي"
+  },
+  {
+   "rid": 164,
+   "task": "sentiment",
+   "embedded": "محايد",
+   "official": "ايجابي"
+  },
+  {
+   "rid": 167,
+   "task": "sentiment",
+   "embedded": "سلبي",
+   "official": "ايجابي"
+  },
+  {
+   "rid": 260,
+   "task": "sentiment",
+   "embedded": "سلبي",
+   "official": "ايجابي"
+  },
+  {
+   "rid": 327,
+   "task": "sentiment",
+   "embedded": "محايد",
+   "official": "ايجابي"
+  },
+  {
+   "rid": 396,
+   "task": "sentiment",
+   "embedded": "سلبي",
+   "official": "ايجابي"
+  },
+  {
+   "rid": 521,
+   "task": "aspect",
+   "embedded": "الخدمة",
+   "official": "المشروبات"
+  },
+  {
+   "rid": 522,
+   "task": "sentiment",
+   "embedded": "سلبي",
+   "official": "ايجابي"
+  },
+  {
+   "rid": 558,
+   "task": "sentiment",
+   "embedded": "محايد",
+   "official": "ايجابي"
+  },
+  {
+   "rid": 584,
+   "task": "sentiment",
+   "embedded": "محايد",
+   "official": "ايجابي"
+  },
+  {
+   "rid": 637,
+   "task": "sentiment",
+   "embedded": "محايد",
+   "official": "ايجابي"
+  },
+  {
+   "rid": 649,
+   "task": "aspect",
+   "embedded": "الخدمة",
+   "official": "المشروبات"
+  },
+  {
+   "rid": 748,
+   "task": "sentiment",
+   "embedded": "محايد",
+   "official": "ايجابي"
+  },
+  {
+   "rid": 778,
+   "task": "sentiment",
+   "embedded": "محايد",
+   "official": "ايجابي"
+  },
+  {
+   "rid": 801,
+   "task": "sentiment",
+   "embedded": "محايد",
+   "official": "ايجابي"
+  },
+  {
+   "rid": 922,
+   "task": "sentiment",
+   "embedded": "سلبي",
+   "official": "ايجابي"
+  },
+  {
+   "rid": 930,
+   "task": "sentiment",
+   "embedded": "محايد",
+   "official": "ايجابي"
+  },
+  {
+   "rid": 1365,
+   "task": "sentiment",
+   "embedded": "سلبي",
+   "official": "ايجابي"
+  },
+  {
+   "rid": 1756,
+   "task": "sentiment",
+   "embedded": "سلبي",
+   "official": "ايجابي"
+  },
+  {
+   "rid": 2036,
+   "task": "sentiment",
+   "embedded": "محايد",
+   "official": "ايجابي"
+  },
+  {
+   "rid": 2366,
+   "task": "aspect",
+   "embedded": "الجلسات",
+   "official": "الخدمة"
+  },
+  {
+   "rid": 2380,
+   "task": "aspect",
+   "embedded": "الجلسات",
+   "official": "المشروبات"
+  },
+  {
+   "rid": 2425,
+   "task": "sentiment",
+   "embedded": "محايد",
+   "official": "ايجابي"
+  },
+  {
+   "rid": 2437,
+   "task": "sentiment",
+   "embedded": "محايد",
+   "official": "ايجابي"
+  },
+  {
+   "rid": 2792,
+   "task": "sentiment",
+   "embedded": "سلبي",
+   "official": "ايجابي"
+  },
+  {
+   "rid": 2841,
+   "task": "sentiment",
+   "embedded": "محايد",
+   "official": "ايجابي"
+  }
+ ],
+ "label_resolutions": [
+  {
+   "rid": 340,
+   "task": "sentiment",
+   "source": "محايد",
+   "resolved": "سلبي",
+   "group_rids": [
+    340,
+    374,
+    1296
+   ]
+  },
+  {
+   "rid": 541,
+   "task": "aspect",
+   "source": "الجلسات",
+   "resolved": "الخدمة",
+   "group_rids": [
+    541,
+    602,
+    626
+   ]
+  }
+ ],
+ "duplicate_groups": [
+  {
+   "rids": [
+    19,
+    2087
+   ],
+   "aspect_votes": {
+    "الجلسات": 2
+   },
+   "sentiment_votes": {
+    "ايجابي": 2
+   },
+   "outcome": "kept_representative"
+  },
+  {
+   "rids": [
+    23,
+    410,
+    444,
+    1314,
+    1344
+   ],
+   "aspect_votes": {
+    "الاسعار": 5
+   },
+   "sentiment_votes": {
+    "سلبي": 5
+   },
+   "outcome": "kept_representative"
+  },
+  {
+   "rids": [
+    25,
+    412,
+    1316
+   ],
+   "aspect_votes": {
+    "الاسعار": 3
+   },
+   "sentiment_votes": {
+    "سلبي": 3
+   },
+   "outcome": "kept_representative"
+  },
+  {
+   "rids": [
+    26,
+    413,
+    1381
+   ],
+   "aspect_votes": {
+    "الاسعار": 3
+   },
+   "sentiment_votes": {
+    "سلبي": 3
+   },
+   "outcome": "kept_representative"
+  },
+  {
+   "rids": [
+    32,
+    498
+   ],
+   "aspect_votes": {
+    "الخدمة": 2
+   },
+   "sentiment_votes": {
+    "ايجابي": 2
+   },
+   "outcome": "kept_representative"
+  },
+  {
+   "rids": [
+    36,
+    510
+   ],
+   "aspect_votes": {
+    "الخدمة": 2
+   },
+   "sentiment_votes": {
+    "ايجابي": 1,
+    "محايد": 1
+   },
+   "outcome": "excluded_label_tie"
+  },
+  {
+   "rids": [
+    60,
+    555
+   ],
+   "aspect_votes": {
+    "الخدمة": 2
+   },
+   "sentiment_votes": {
+    "سلبي": 2
+   },
+   "outcome": "kept_representative"
+  },
+  {
+   "rids": [
+    63,
+    556,
+    635
+   ],
+   "aspect_votes": {
+    "الخدمة": 3
+   },
+   "sentiment_votes": {
+    "سلبي": 3
+   },
+   "outcome": "kept_representative"
+  },
+  {
+   "rids": [
+    70,
+    664
+   ],
+   "aspect_votes": {
+    "المأكولات": 2
+   },
+   "sentiment_votes": {
+    "محايد": 2
+   },
+   "outcome": "kept_representative"
+  },
+  {
+   "rids": [
+    72,
+    909
+   ],
+   "aspect_votes": {
+    "المشروبات": 2
+   },
+   "sentiment_votes": {
+    "ايجابي": 2
+   },
+   "outcome": "kept_representative"
+  },
+  {
+   "rids": [
+    78,
+    582
+   ],
+   "aspect_votes": {
+    "الخدمة": 2
+   },
+   "sentiment_votes": {
+    "سلبي": 2
+   },
+   "outcome": "kept_representative"
+  },
+  {
+   "rids": [
+    135,
+    981
+   ],
+   "aspect_votes": {
+    "المشروبات": 2
+   },
+   "sentiment_votes": {
+    "ايجابي": 2
+   },
+   "outcome": "kept_representative"
+  },
+  {
+   "rids": [
+    198,
+    211
+   ],
+   "aspect_votes": {
+    "الجلسات": 2
+   },
+   "sentiment_votes": {
+    "ايجابي": 2
+   },
+   "outcome": "kept_representative"
+  },
+  {
+   "rids": [
+    205,
+    1349
+   ],
+   "aspect_votes": {
+    "الاسعار": 2
+   },
+   "sentiment_votes": {
+    "سلبي": 2
+   },
+   "outcome": "kept_representative"
+  },
+  {
+   "rids": [
+    207,
+    1122
+   ],
+   "aspect_votes": {
+    "المشروبات": 2
+   },
+   "sentiment_votes": {
+    "ايجابي": 2
+   },
+   "outcome": "kept_representative"
+  },
+  {
+   "rids": [
+    208,
+    1123
+   ],
+   "aspect_votes": {
+    "المشروبات": 2
+   },
+   "sentiment_votes": {
+    "ايجابي": 2
+   },
+   "outcome": "kept_representative"
+  },
+  {
+   "rids": [
+    229,
+    1154
+   ],
+   "aspect_votes": {
+    "المشروبات": 2
+   },
+   "sentiment_votes": {
+    "ايجابي": 2
+   },
+   "outcome": "kept_representative"
+  },
+  {
+   "rids": [
+    330,
+    368,
+    1289
+   ],
+   "aspect_votes": {
+    "الاسعار": 3
+   },
+   "sentiment_votes": {
+    "سلبي": 3
+   },
+   "outcome": "kept_representative"
+  },
+  {
+   "rids": [
+    333,
+    386,
+    1290,
+    1353
+   ],
+   "aspect_votes": {
+    "الاسعار": 4
+   },
+   "sentiment_votes": {
+    "سلبي": 4
+   },
+   "outcome": "kept_representative"
+  },
+  {
+   "rids": [
+    334,
+    370
+   ],
+   "aspect_votes": {
+    "الاسعار": 2
+   },
+   "sentiment_votes": {
+    "محايد": 2
+   },
+   "outcome": "kept_representative"
+  },
+  {
+   "rids": [
+    335,
+    371
+   ],
+   "aspect_votes": {
+    "الاسعار": 2
+   },
+   "sentiment_votes": {
+    "محايد": 2
+   },
+   "outcome": "kept_representative"
+  },
+  {
+   "rids": [
+    336,
+    372,
+    389,
+    1293
+   ],
+   "aspect_votes": {
+    "الاسعار": 4
+   },
+   "sentiment_votes": {
+    "سلبي": 4
+   },
+   "outcome": "kept_representative"
+  },
+  {
+   "rids": [
+    340,
+    374,
+    1296
+   ],
+   "aspect_votes": {
+    "الاسعار": 3
+   },
+   "sentiment_votes": {
+    "سلبي": 2,
+    "محايد": 1
+   },
+   "outcome": "kept_representative"
+  },
+  {
+   "rids": [
+    344,
+    1298
+   ],
+   "aspect_votes": {
+    "الاسعار": 2
+   },
+   "sentiment_votes": {
+    "سلبي": 2
+   },
+   "outcome": "kept_representative"
+  },
+  {
+   "rids": [
+    349,
+    376,
+    394,
+    1300
+   ],
+   "aspect_votes": {
+    "الاسعار": 4
+   },
+   "sentiment_votes": {
+    "سلبي": 4
+   },
+   "outcome": "kept_representative"
+  },
+  {
+   "rids": [
+    350,
+    377,
+    395,
+    1301
+   ],
+   "aspect_votes": {
+    "الاسعار": 4
+   },
+   "sentiment_votes": {
+    "سلبي": 4
+   },
+   "outcome": "kept_representative"
+  },
+  {
+   "rids": [
+    355,
+    398,
+    1303
+   ],
+   "aspect_votes": {
+    "الاسعار": 3
+   },
+   "sentiment_votes": {
+    "سلبي": 3
+   },
+   "outcome": "kept_representative"
+  },
+  {
+   "rids": [
+    356,
+    379,
+    399,
+    1304
+   ],
+   "aspect_votes": {
+    "الاسعار": 4
+   },
+   "sentiment_votes": {
+    "سلبي": 4
+   },
+   "outcome": "kept_representative"
+  },
+  {
+   "rids": [
+    358,
+    401,
+    1305
+   ],
+   "aspect_votes": {
+    "الاسعار": 3
+   },
+   "sentiment_votes": {
+    "ايجابي": 3
+   },
+   "outcome": "kept_representative"
+  },
+  {
+   "rids": [
+    359,
+    380,
+    402,
+    1306
+   ],
+   "aspect_votes": {
+    "الاسعار": 4
+   },
+   "sentiment_votes": {
+    "ايجابي": 4
+   },
+   "outcome": "kept_representative"
+  },
+  {
+   "rids": [
+    360,
+    381,
+    403,
+    1307
+   ],
+   "aspect_votes": {
+    "الاسعار": 4
+   },
+   "sentiment_votes": {
+    "سلبي": 3,
+    "محايد": 1
+   },
+   "outcome": "kept_representative"
+  },
+  {
+   "rids": [
+    361,
+    382,
+    404,
+    1308
+   ],
+   "aspect_votes": {
+    "الاسعار": 4
+   },
+   "sentiment_votes": {
+    "سلبي": 4
+   },
+   "outcome": "kept_representative"
+  },
+  {
+   "rids": [
+    362,
+    383,
+    405,
+    1309
+   ],
+   "aspect_votes": {
+    "الاسعار": 4
+   },
+   "sentiment_votes": {
+    "سلبي": 3,
+    "محايد": 1
+   },
+   "outcome": "kept_representative"
+  },
+  {
+   "rids": [
+    363,
+    384,
+    406,
+    1310
+   ],
+   "aspect_votes": {
+    "الاسعار": 4
+   },
+   "sentiment_votes": {
+    "سلبي": 4
+   },
+   "outcome": "kept_representative"
+  },
+  {
+   "rids": [
+    366,
+    414,
+    1317
+   ],
+   "aspect_votes": {
+    "الاسعار": 3
+   },
+   "sentiment_votes": {
+    "سلبي": 3
+   },
+   "outcome": "kept_representative"
+  },
+  {
+   "rids": [
+    367,
+    415,
+    1318
+   ],
+   "aspect_votes": {
+    "الاسعار": 3
+   },
+   "sentiment_votes": {
+    "محايد": 3
+   },
+   "outcome": "kept_representative"
+  },
+  {
+   "rids": [
+    375,
+    393
+   ],
+   "aspect_votes": {
+    "الاسعار": 2
+   },
+   "sentiment_votes": {
+    "سلبي": 2
+   },
+   "outcome": "kept_representative"
+  },
+  {
+   "rids": [
+    385,
+    409
+   ],
+   "aspect_votes": {
+    "الاسعار": 2
+   },
+   "sentiment_votes": {
+    "محايد": 2
+   },
+   "outcome": "kept_representative"
+  },
+  {
+   "rids": [
+    387,
+    1291
+   ],
+   "aspect_votes": {
+    "الاسعار": 2
+   },
+   "sentiment_votes": {
+    "سلبي": 2
+   },
+   "outcome": "kept_representative"
+  },
+  {
+   "rids": [
+    388,
+    1292
+   ],
+   "aspect_votes": {
+    "الاسعار": 2
+   },
+   "sentiment_votes": {
+    "سلبي": 2
+   },
+   "outcome": "kept_representative"
+  },
+  {
+   "rids": [
+    390,
+    1295
+   ],
+   "aspect_votes": {
+    "الاسعار": 2
+   },
+   "sentiment_votes": {
+    "سلبي": 2
+   },
+   "outcome": "kept_representative"
+  },
+  {
+   "rids": [
+    416,
+    448,
+    462,
+    1319
+   ],
+   "aspect_votes": {
+    "الاسعار": 4
+   },
+   "sentiment_votes": {
+    "سلبي": 4
+   },
+   "outcome": "kept_representative"
+  },
+  {
+   "rids": [
+    417,
+    449,
+    1320
+   ],
+   "aspect_votes": {
+    "الاسعار": 3
+   },
+   "sentiment_votes": {
+    "سلبي": 3
+   },
+   "outcome": "kept_representative"
+  },
+  {
+   "rids": [
+    418,
+    1321
+   ],
+   "aspect_votes": {
+    "الاسعار": 2
+   },
+   "sentiment_votes": {
+    "سلبي": 2
+   },
+   "outcome": "kept_representative"
+  },
+  {
+   "rids": [
+    421,
+    450
+   ],
+   "aspect_votes": {
+    "الاسعار": 2
+   },
+   "sentiment_votes": {
+    "سلبي": 2
+   },
+   "outcome": "kept_representative"
+  },
+  {
+   "rids": [
+    422,
+    451
+   ],
+   "aspect_votes": {
+    "الاسعار": 2
+   },
+   "sentiment_votes": {
+    "سلبي": 2
+   },
+   "outcome": "kept_representative"
+  },
+  {
+   "rids": [
+    423,
+    452,
+    1323
+   ],
+   "aspect_votes": {
+    "الاسعار": 3
+   },
+   "sentiment_votes": {
+    "سلبي": 3
+   },
+   "outcome": "kept_representative"
+  },
+  {
+   "rids": [
+    426,
+    1326
+   ],
+   "aspect_votes": {
+    "الاسعار": 2
+   },
+   "sentiment_votes": {
+    "سلبي": 1,
+    "محايد": 1
+   },
+   "outcome": "excluded_label_tie"
+  },
+  {
+   "rids": [
+    429,
+    453
+   ],
+   "aspect_votes": {
+    "الاسعار": 2
+   },
+   "sentiment_votes": {
+    "سلبي": 2
+   },
+   "outcome": "kept_representative"
+  },
+  {
+   "rids": [
+    430,
+    454
+   ],
+   "aspect_votes": {
+    "الاسعار": 2
+   },
+   "sentiment_votes": {
+    "سلبي": 2
+   },
+   "outcome": "kept_representative"
+  },
+  {
+   "rids": [
+    431,
+    1331
+   ],
+   "aspect_votes": {
+    "الاسعار": 2
+   },
+   "sentiment_votes": {
+    "سلبي": 2
+   },
+   "outcome": "kept_representative"
+  },
+  {
+   "rids": [
+    433,
+    456,
+    1333
+   ],
+   "aspect_votes": {
+    "الاسعار": 3
+   },
+   "sentiment_votes": {
+    "سلبي": 3
+   },
+   "outcome": "kept_representative"
+  },
+  {
+   "rids": [
+    439,
+    463,
+    1339
+   ],
+   "aspect_votes": {
+    "الاسعار": 3
+   },
+   "sentiment_votes": {
+    "سلبي": 3
+   },
+   "outcome": "kept_representative"
+  },
+  {
+   "rids": [
+    440,
+    1340
+   ],
+   "aspect_votes": {
+    "الاسعار": 2
+   },
+   "sentiment_votes": {
+    "سلبي": 1,
+    "محايد": 1
+   },
+   "outcome": "excluded_label_tie"
+  },
+  {
+   "rids": [
+    441,
+    1341
+   ],
+   "aspect_votes": {
+    "الاسعار": 2
+   },
+   "sentiment_votes": {
+    "سلبي": 2
+   },
+   "outcome": "kept_representative"
+  },
+  {
+   "rids": [
+    443,
+    458
+   ],
+   "aspect_votes": {
+    "الاسعار": 2
+   },
+   "sentiment_votes": {
+    "سلبي": 2
+   },
+   "outcome": "kept_representative"
+  },
+  {
+   "rids": [
+    445,
+    459,
+    1345
+   ],
+   "aspect_votes": {
+    "الاسعار": 3
+   },
+   "sentiment_votes": {
+    "سلبي": 3
+   },
+   "outcome": "kept_representative"
+  },
+  {
+   "rids": [
+    446,
+    460
+   ],
+   "aspect_votes": {
+    "الاسعار": 2
+   },
+   "sentiment_votes": {
+    "سلبي": 2
+   },
+   "outcome": "kept_representative"
+  },
+  {
+   "rids": [
+    447,
+    461,
+    464,
+    1347
+   ],
+   "aspect_votes": {
+    "الاسعار": 4
+   },
+   "sentiment_votes": {
+    "سلبي": 4
+   },
+   "outcome": "kept_representative"
+  },
+  {
+   "rids": [
+    455,
+    1332
+   ],
+   "aspect_votes": {
+    "الاسعار": 2
+   },
+   "sentiment_votes": {
+    "سلبي": 2
+   },
+   "outcome": "kept_representative"
+  },
+  {
+   "rids": [
+    457,
+    1334
+   ],
+   "aspect_votes": {
+    "الاسعار": 2
+   },
+   "sentiment_votes": {
+    "سلبي": 2
+   },
+   "outcome": "kept_representative"
+  },
+  {
+   "rids": [
+    499,
+    1663
+   ],
+   "aspect_votes": {
+    "الخدمة": 2
+   },
+   "sentiment_votes": {
+    "ايجابي": 2
+   },
+   "outcome": "kept_representative"
+  },
+  {
+   "rids": [
+    532,
+    598,
+    617
+   ],
+   "aspect_votes": {
+    "الخدمة": 3
+   },
+   "sentiment_votes": {
+    "ايجابي": 3
+   },
+   "outcome": "kept_representative"
+  },
+  {
+   "rids": [
+    533,
+    618
+   ],
+   "aspect_votes": {
+    "الخدمة": 2
+   },
+   "sentiment_votes": {
+    "ايجابي": 2
+   },
+   "outcome": "kept_representative"
+  },
+  {
+   "rids": [
+    534,
+    599,
+    619
+   ],
+   "aspect_votes": {
+    "الخدمة": 3
+   },
+   "sentiment_votes": {
+    "سلبي": 3
+   },
+   "outcome": "kept_representative"
+  },
+  {
+   "rids": [
+    535,
+    620
+   ],
+   "aspect_votes": {
+    "الجلسات": 1,
+    "الخدمة": 1
+   },
+   "sentiment_votes": {
+    "محايد": 2
+   },
+   "outcome": "excluded_label_tie"
+  },
+  {
+   "rids": [
+    536,
+    621
+   ],
+   "aspect_votes": {
+    "الجلسات": 1,
+    "الخدمة": 1
+   },
+   "sentiment_votes": {
+    "سلبي": 2
+   },
+   "outcome": "excluded_label_tie"
+  },
+  {
+   "rids": [
+    538,
+    601,
+    623
+   ],
+   "aspect_votes": {
+    "الخدمة": 3
+   },
+   "sentiment_votes": {
+    "سلبي": 3
+   },
+   "outcome": "kept_representative"
+  },
+  {
+   "rids": [
+    539,
+    624
+   ],
+   "aspect_votes": {
+    "الخدمة": 2
+   },
+   "sentiment_votes": {
+    "سلبي": 2
+   },
+   "outcome": "kept_representative"
+  },
+  {
+   "rids": [
+    541,
+    602,
+    626
+   ],
+   "aspect_votes": {
+    "الجلسات": 1,
+    "الخدمة": 2
+   },
+   "sentiment_votes": {
+    "سلبي": 3
+   },
+   "outcome": "kept_representative"
+  },
+  {
+   "rids": [
+    543,
+    603,
+    628
+   ],
+   "aspect_votes": {
+    "الخدمة": 3
+   },
+   "sentiment_votes": {
+    "سلبي": 3
+   },
+   "outcome": "kept_representative"
+  },
+  {
+   "rids": [
+    544,
+    604,
+    629
+   ],
+   "aspect_votes": {
+    "الخدمة": 3
+   },
+   "sentiment_votes": {
+    "سلبي": 3
+   },
+   "outcome": "kept_representative"
+  },
+  {
+   "rids": [
+    545,
+    630
+   ],
+   "aspect_votes": {
+    "الخدمة": 2
+   },
+   "sentiment_votes": {
+    "سلبي": 2
+   },
+   "outcome": "kept_representative"
+  },
+  {
+   "rids": [
+    547,
+    632
+   ],
+   "aspect_votes": {
+    "الخدمة": 2
+   },
+   "sentiment_votes": {
+    "سلبي": 2
+   },
+   "outcome": "kept_representative"
+  },
+  {
+   "rids": [
+    548,
+    633
+   ],
+   "aspect_votes": {
+    "الخدمة": 2
+   },
+   "sentiment_votes": {
+    "ايجابي": 2
+   },
+   "outcome": "kept_representative"
+  },
+  {
+   "rids": [
+    549,
+    634
+   ],
+   "aspect_votes": {
+    "الخدمة": 2
+   },
+   "sentiment_votes": {
+    "ايجابي": 2
+   },
+   "outcome": "kept_representative"
+  },
+  {
+   "rids": [
+    557,
+    636
+   ],
+   "aspect_votes": {
+    "الخدمة": 2
+   },
+   "sentiment_votes": {
+    "ايجابي": 2
+   },
+   "outcome": "kept_representative"
+  },
+  {
+   "rids": [
+    558,
+    637
+   ],
+   "aspect_votes": {
+    "الخدمة": 2
+   },
+   "sentiment_votes": {
+    "ايجابي": 2
+   },
+   "outcome": "kept_representative"
+  },
+  {
+   "rids": [
+    559,
+    638
+   ],
+   "aspect_votes": {
+    "الخدمة": 2
+   },
+   "sentiment_votes": {
+    "سلبي": 2
+   },
+   "outcome": "kept_representative"
+  },
+  {
+   "rids": [
+    560,
+    639
+   ],
+   "aspect_votes": {
+    "الخدمة": 2
+   },
+   "sentiment_votes": {
+    "محايد": 2
+   },
+   "outcome": "kept_representative"
+  },
+  {
+   "rids": [
+    561,
+    640
+   ],
+   "aspect_votes": {
+    "الخدمة": 2
+   },
+   "sentiment_votes": {
+    "ايجابي": 2
+   },
+   "outcome": "kept_representative"
+  },
+  {
+   "rids": [
+    562,
+    641
+   ],
+   "aspect_votes": {
+    "الخدمة": 2
+   },
+   "sentiment_votes": {
+    "ايجابي": 2
+   },
+   "outcome": "kept_representative"
+  },
+  {
+   "rids": [
+    563,
+    642
+   ],
+   "aspect_votes": {
+    "الخدمة": 2
+   },
+   "sentiment_votes": {
+    "سلبي": 2
+   },
+   "outcome": "kept_representative"
+  },
+  {
+   "rids": [
+    564,
+    643
+   ],
+   "aspect_votes": {
+    "الخدمة": 2
+   },
+   "sentiment_votes": {
+    "سلبي": 2
+   },
+   "outcome": "kept_representative"
+  },
+  {
+   "rids": [
+    565,
+    644
+   ],
+   "aspect_votes": {
+    "الخدمة": 2
+   },
+   "sentiment_votes": {
+    "سلبي": 2
+   },
+   "outcome": "kept_representative"
+  },
+  {
+   "rids": [
+    566,
+    645
+   ],
+   "aspect_votes": {
+    "الخدمة": 2
+   },
+   "sentiment_votes": {
+    "سلبي": 2
+   },
+   "outcome": "kept_representative"
+  },
+  {
+   "rids": [
+    567,
+    605,
+    647
+   ],
+   "aspect_votes": {
+    "الخدمة": 3
+   },
+   "sentiment_votes": {
+    "ايجابي": 3
+   },
+   "outcome": "kept_representative"
+  },
+  {
+   "rids": [
+    568,
+    606,
+    648
+   ],
+   "aspect_votes": {
+    "الخدمة": 3
+   },
+   "sentiment_votes": {
+    "ايجابي": 3
+   },
+   "outcome": "kept_representative"
+  },
+  {
+   "rids": [
+    570,
+    608
+   ],
+   "aspect_votes": {
+    "الخدمة": 2
+   },
+   "sentiment_votes": {
+    "سلبي": 2
+   },
+   "outcome": "kept_representative"
+  },
+  {
+   "rids": [
+    571,
+    609
+   ],
+   "aspect_votes": {
+    "الخدمة": 2
+   },
+   "sentiment_votes": {
+    "ايجابي": 2
+   },
+   "outcome": "kept_representative"
+  },
+  {
+   "rids": [
+    572,
+    610
+   ],
+   "aspect_votes": {
+    "الخدمة": 2
+   },
+   "sentiment_votes": {
+    "محايد": 2
+   },
+   "outcome": "kept_representative"
+  },
+  {
+   "rids": [
+    573,
+    611
+   ],
+   "aspect_votes": {
+    "الخدمة": 2
+   },
+   "sentiment_votes": {
+    "ايجابي": 2
+   },
+   "outcome": "kept_representative"
+  },
+  {
+   "rids": [
+    574,
+    612
+   ],
+   "aspect_votes": {
+    "الخدمة": 2
+   },
+   "sentiment_votes": {
+    "سلبي": 2
+   },
+   "outcome": "kept_representative"
+  },
+  {
+   "rids": [
+    575,
+    685,
+    716
+   ],
+   "aspect_votes": {
+    "المأكولات": 3
+   },
+   "sentiment_votes": {
+    "سلبي": 3
+   },
+   "outcome": "kept_representative"
+  },
+  {
+   "rids": [
+    576,
+    614
+   ],
+   "aspect_votes": {
+    "الخدمة": 2
+   },
+   "sentiment_votes": {
+    "ايجابي": 2
+   },
+   "outcome": "kept_representative"
+  },
+  {
+   "rids": [
+    577,
+    615
+   ],
+   "aspect_votes": {
+    "الخدمة": 2
+   },
+   "sentiment_votes": {
+    "سلبي": 2
+   },
+   "outcome": "kept_representative"
+  },
+  {
+   "rids": [
+    578,
+    616
+   ],
+   "aspect_votes": {
+    "الخدمة": 2
+   },
+   "sentiment_votes": {
+    "ايجابي": 2
+   },
+   "outcome": "kept_representative"
+  },
+  {
+   "rids": [
+    597,
+    650
+   ],
+   "aspect_votes": {
+    "الخدمة": 2
+   },
+   "sentiment_votes": {
+    "ايجابي": 2
+   },
+   "outcome": "kept_representative"
+  },
+  {
+   "rids": [
+    600,
+    622
+   ],
+   "aspect_votes": {
+    "الخدمة": 2
+   },
+   "sentiment_votes": {
+    "سلبي": 2
+   },
+   "outcome": "kept_representative"
+  },
+  {
+   "rids": [
+    651,
+    701
+   ],
+   "aspect_votes": {
+    "المأكولات": 2
+   },
+   "sentiment_votes": {
+    "ايجابي": 2
+   },
+   "outcome": "kept_representative"
+  },
+  {
+   "rids": [
+    654,
+    703
+   ],
+   "aspect_votes": {
+    "المأكولات": 2
+   },
+   "sentiment_votes": {
+    "ايجابي": 2
+   },
+   "outcome": "kept_representative"
+  },
+  {
+   "rids": [
+    657,
+    704
+   ],
+   "aspect_votes": {
+    "المأكولات": 2
+   },
+   "sentiment_votes": {
+    "ايجابي": 2
+   },
+   "outcome": "kept_representative"
+  },
+  {
+   "rids": [
+    658,
+    790
+   ],
+   "aspect_votes": {
+    "المأكولات": 2
+   },
+   "sentiment_votes": {
+    "ايجابي": 2
+   },
+   "outcome": "kept_representative"
+  },
+  {
+   "rids": [
+    670,
+    705
+   ],
+   "aspect_votes": {
+    "المأكولات": 2
+   },
+   "sentiment_votes": {
+    "ايجابي": 2
+   },
+   "outcome": "kept_representative"
+  },
+  {
+   "rids": [
+    674,
+    708
+   ],
+   "aspect_votes": {
+    "المأكولات": 2
+   },
+   "sentiment_votes": {
+    "سلبي": 2
+   },
+   "outcome": "kept_representative"
+  },
+  {
+   "rids": [
+    680,
+    714
+   ],
+   "aspect_votes": {
+    "المأكولات": 2
+   },
+   "sentiment_votes": {
+    "محايد": 2
+   },
+   "outcome": "kept_representative"
+  },
+  {
+   "rids": [
+    686,
+    717,
+    760
+   ],
+   "aspect_votes": {
+    "المأكولات": 3
+   },
+   "sentiment_votes": {
+    "سلبي": 3
+   },
+   "outcome": "kept_representative"
+  },
+  {
+   "rids": [
+    687,
+    718
+   ],
+   "aspect_votes": {
+    "المأكولات": 2
+   },
+   "sentiment_votes": {
+    "محايد": 2
+   },
+   "outcome": "kept_representative"
+  },
+  {
+   "rids": [
+    726,
+    2132
+   ],
+   "aspect_votes": {
+    "المأكولات": 2
+   },
+   "sentiment_votes": {
+    "ايجابي": 2
+   },
+   "outcome": "kept_representative"
+  },
+  {
+   "rids": [
+    763,
+    1549
+   ],
+   "aspect_votes": {
+    "المأكولات": 2
+   },
+   "sentiment_votes": {
+    "ايجابي": 2
+   },
+   "outcome": "kept_representative"
+  },
+  {
+   "rids": [
+    774,
+    817
+   ],
+   "aspect_votes": {
+    "المأكولات": 2
+   },
+   "sentiment_votes": {
+    "ايجابي": 2
+   },
+   "outcome": "kept_representative"
+  },
+  {
+   "rids": [
+    799,
+    2912
+   ],
+   "aspect_votes": {
+    "المأكولات": 2
+   },
+   "sentiment_votes": {
+    "ايجابي": 2
+   },
+   "outcome": "kept_representative"
+  },
+  {
+   "rids": [
+    848,
+    872
+   ],
+   "aspect_votes": {
+    "المشروبات": 2
+   },
+   "sentiment_votes": {
+    "ايجابي": 2
+   },
+   "outcome": "kept_representative"
+  },
+  {
+   "rids": [
+    849,
+    873
+   ],
+   "aspect_votes": {
+    "المشروبات": 2
+   },
+   "sentiment_votes": {
+    "ايجابي": 2
+   },
+   "outcome": "kept_representative"
+  },
+  {
+   "rids": [
+    850,
+    874
+   ],
+   "aspect_votes": {
+    "المأكولات": 1,
+    "المشروبات": 1
+   },
+   "sentiment_votes": {
+    "ايجابي": 2
+   },
+   "outcome": "excluded_label_tie"
+  },
+  {
+   "rids": [
+    852,
+    876
+   ],
+   "aspect_votes": {
+    "المشروبات": 2
+   },
+   "sentiment_votes": {
+    "ايجابي": 2
+   },
+   "outcome": "kept_representative"
+  },
+  {
+   "rids": [
+    853,
+    877
+   ],
+   "aspect_votes": {
+    "المشروبات": 2
+   },
+   "sentiment_votes": {
+    "محايد": 2
+   },
+   "outcome": "kept_representative"
+  },
+  {
+   "rids": [
+    854,
+    878,
+    961,
+    1155
+   ],
+   "aspect_votes": {
+    "المشروبات": 4
+   },
+   "sentiment_votes": {
+    "ايجابي": 4
+   },
+   "outcome": "kept_representative"
+  },
+  {
+   "rids": [
+    855,
+    879
+   ],
+   "aspect_votes": {
+    "المشروبات": 2
+   },
+   "sentiment_votes": {
+    "ايجابي": 2
+   },
+   "outcome": "kept_representative"
+  },
+  {
+   "rids": [
+    856,
+    880
+   ],
+   "aspect_votes": {
+    "المشروبات": 2
+   },
+   "sentiment_votes": {
+    "ايجابي": 2
+   },
+   "outcome": "kept_representative"
+  },
+  {
+   "rids": [
+    857,
+    881
+   ],
+   "aspect_votes": {
+    "المشروبات": 2
+   },
+   "sentiment_votes": {
+    "ايجابي": 2
+   },
+   "outcome": "kept_representative"
+  },
+  {
+   "rids": [
+    858,
+    882,
+    889
+   ],
+   "aspect_votes": {
+    "المشروبات": 3
+   },
+   "sentiment_votes": {
+    "ايجابي": 3
+   },
+   "outcome": "kept_representative"
+  },
+  {
+   "rids": [
+    859,
+    883,
+    890
+   ],
+   "aspect_votes": {
+    "المشروبات": 3
+   },
+   "sentiment_votes": {
+    "سلبي": 3
+   },
+   "outcome": "kept_representative"
+  },
+  {
+   "rids": [
+    860,
+    884
+   ],
+   "aspect_votes": {
+    "المشروبات": 2
+   },
+   "sentiment_votes": {
+    "ايجابي": 2
+   },
+   "outcome": "kept_representative"
+  },
+  {
+   "rids": [
+    861,
+    885
+   ],
+   "aspect_votes": {
+    "المشروبات": 2
+   },
+   "sentiment_votes": {
+    "محايد": 2
+   },
+   "outcome": "kept_representative"
+  },
+  {
+   "rids": [
+    862,
+    886
+   ],
+   "aspect_votes": {
+    "المشروبات": 2
+   },
+   "sentiment_votes": {
+    "سلبي": 2
+   },
+   "outcome": "kept_representative"
+  },
+  {
+   "rids": [
+    863,
+    887
+   ],
+   "aspect_votes": {
+    "المشروبات": 2
+   },
+   "sentiment_votes": {
+    "ايجابي": 2
+   },
+   "outcome": "kept_representative"
+  },
+  {
+   "rids": [
+    867,
+    888
+   ],
+   "aspect_votes": {
+    "المشروبات": 2
+   },
+   "sentiment_votes": {
+    "ايجابي": 2
+   },
+   "outcome": "kept_representative"
+  },
+  {
+   "rids": [
+    978,
+    1135
+   ],
+   "aspect_votes": {
+    "المشروبات": 2
+   },
+   "sentiment_votes": {
+    "ايجابي": 2
+   },
+   "outcome": "kept_representative"
+  },
+  {
+   "rids": [
+    1014,
+    2169
+   ],
+   "aspect_votes": {
+    "المشروبات": 2
+   },
+   "sentiment_votes": {
+    "ايجابي": 2
+   },
+   "outcome": "kept_representative"
+  },
+  {
+   "rids": [
+    1030,
+    2213,
+    2713
+   ],
+   "aspect_votes": {
+    "المأكولات": 1,
+    "المشروبات": 2
+   },
+   "sentiment_votes": {
+    "ايجابي": 3
+   },
+   "outcome": "kept_representative"
+  },
+  {
+   "rids": [
+    1033,
+    1051
+   ],
+   "aspect_votes": {
+    "المشروبات": 2
+   },
+   "sentiment_votes": {
+    "ايجابي": 2
+   },
+   "outcome": "kept_representative"
+  },
+  {
+   "rids": [
+    1067,
+    1162
+   ],
+   "aspect_votes": {
+    "المشروبات": 2
+   },
+   "sentiment_votes": {
+    "ايجابي": 2
+   },
+   "outcome": "kept_representative"
+  },
+  {
+   "rids": [
+    1084,
+    2327,
+    2712
+   ],
+   "aspect_votes": {
+    "المشروبات": 3
+   },
+   "sentiment_votes": {
+    "ايجابي": 3
+   },
+   "outcome": "kept_representative"
+  },
+  {
+   "rids": [
+    1097,
+    2202,
+    2474
+   ],
+   "aspect_votes": {
+    "المشروبات": 3
+   },
+   "sentiment_votes": {
+    "ايجابي": 3
+   },
+   "outcome": "kept_representative"
+  },
+  {
+   "rids": [
+    1126,
+    1134
+   ],
+   "aspect_votes": {
+    "المشروبات": 2
+   },
+   "sentiment_votes": {
+    "ايجابي": 2
+   },
+   "outcome": "kept_representative"
+  },
+  {
+   "rids": [
+    1127,
+    1129
+   ],
+   "aspect_votes": {
+    "المشروبات": 2
+   },
+   "sentiment_votes": {
+    "ايجابي": 2
+   },
+   "outcome": "kept_representative"
+  },
+  {
+   "rids": [
+    1169,
+    2064,
+    2128
+   ],
+   "aspect_votes": {
+    "المشروبات": 3
+   },
+   "sentiment_votes": {
+    "ايجابي": 3
+   },
+   "outcome": "kept_representative"
+  },
+  {
+   "rids": [
+    1274,
+    1802,
+    2194
+   ],
+   "aspect_votes": {
+    "المشروبات": 3
+   },
+   "sentiment_votes": {
+    "ايجابي": 3
+   },
+   "outcome": "kept_representative"
+  },
+  {
+   "rids": [
+    1554,
+    1682,
+    2249,
+    2317
+   ],
+   "aspect_votes": {
+    "المشروبات": 4
+   },
+   "sentiment_votes": {
+    "ايجابي": 4
+   },
+   "outcome": "kept_representative"
+  },
+  {
+   "rids": [
+    1662,
+    2239
+   ],
+   "aspect_votes": {
+    "المشروبات": 2
+   },
+   "sentiment_votes": {
+    "ايجابي": 2
+   },
+   "outcome": "kept_representative"
+  },
+  {
+   "rids": [
+    1667,
+    1780
+   ],
+   "aspect_votes": {
+    "الخدمة": 2
+   },
+   "sentiment_votes": {
+    "ايجابي": 2
+   },
+   "outcome": "kept_representative"
+  },
+  {
+   "rids": [
+    1702,
+    1882
+   ],
+   "aspect_votes": {
+    "الخدمة": 2
+   },
+   "sentiment_votes": {
+    "سلبي": 2
+   },
+   "outcome": "kept_representative"
+  },
+  {
+   "rids": [
+    1715,
+    2234
+   ],
+   "aspect_votes": {
+    "الخدمة": 2
+   },
+   "sentiment_votes": {
+    "ايجابي": 2
+   },
+   "outcome": "kept_representative"
+  },
+  {
+   "rids": [
+    1929,
+    2018
+   ],
+   "aspect_votes": {
+    "الخدمة": 2
+   },
+   "sentiment_votes": {
+    "ايجابي": 2
+   },
+   "outcome": "kept_representative"
+  },
+  {
+   "rids": [
+    1962,
+    2019
+   ],
+   "aspect_votes": {
+    "المشروبات": 2
+   },
+   "sentiment_votes": {
+    "سلبي": 2
+   },
+   "outcome": "kept_representative"
+  },
+  {
+   "rids": [
+    2193,
+    2220
+   ],
+   "aspect_votes": {
+    "الخدمة": 2
+   },
+   "sentiment_votes": {
+    "ايجابي": 1,
+    "سلبي": 1
+   },
+   "outcome": "excluded_label_tie"
+  },
+  {
+   "rids": [
+    2205,
+    2219
+   ],
+   "aspect_votes": {
+    "الخدمة": 2
+   },
+   "sentiment_votes": {
+    "ايجابي": 2
+   },
+   "outcome": "kept_representative"
+  },
+  {
+   "rids": [
+    2217,
+    2706
+   ],
+   "aspect_votes": {
+    "المشروبات": 2
+   },
+   "sentiment_votes": {
+    "ايجابي": 2
+   },
+   "outcome": "kept_representative"
+  },
+  {
+   "rids": [
+    2223,
+    2230
+   ],
+   "aspect_votes": {
+    "الخدمة": 2
+   },
+   "sentiment_votes": {
+    "سلبي": 2
+   },
+   "outcome": "kept_representative"
+  },
+  {
+   "rids": [
+    2312,
+    2329
+   ],
+   "aspect_votes": {
+    "المشروبات": 2
+   },
+   "sentiment_votes": {
+    "سلبي": 2
+   },
+   "outcome": "kept_representative"
+  },
+  {
+   "rids": [
+    2313,
+    2326
+   ],
+   "aspect_votes": {
+    "الاسعار": 2
+   },
+   "sentiment_votes": {
+    "سلبي": 2
+   },
+   "outcome": "kept_representative"
+  },
+  {
+   "rids": [
+    2321,
+    2330
+   ],
+   "aspect_votes": {
+    "الخدمة": 2
+   },
+   "sentiment_votes": {
+    "سلبي": 2
+   },
+   "outcome": "kept_representative"
+  },
+  {
+   "rids": [
+    2336,
+    2339
+   ],
+   "aspect_votes": {
+    "الخدمة": 2
+   },
+   "sentiment_votes": {
+    "سلبي": 2
+   },
+   "outcome": "kept_representative"
+  },
+  {
+   "rids": [
+    2487,
+    2738
+   ],
+   "aspect_votes": {
+    "الجلسات": 2
+   },
+   "sentiment_votes": {
+    "ايجابي": 2
+   },
+   "outcome": "kept_representative"
+  },
+  {
+   "rids": [
+    2492,
+    2710
+   ],
+   "aspect_votes": {
+    "الجلسات": 2
+   },
+   "sentiment_votes": {
+    "ايجابي": 2
+   },
+   "outcome": "kept_representative"
+  },
+  {
+   "rids": [
+    2510,
+    2550
+   ],
+   "aspect_votes": {
+    "المشروبات": 2
+   },
+   "sentiment_votes": {
+    "ايجابي": 2
+   },
+   "outcome": "kept_representative"
+  },
+  {
+   "rids": [
+    2679,
+    2723
+   ],
+   "aspect_votes": {
+    "الخدمة": 2
+   },
+   "sentiment_votes": {
+    "ايجابي": 2
+   },
+   "outcome": "kept_representative"
+  },
+  {
+   "rids": [
+    2718,
+    2727
+   ],
+   "aspect_votes": {
+    "الجلسات": 2
+   },
+   "sentiment_votes": {
+    "ايجابي": 2
+   },
+   "outcome": "kept_representative"
+  },
+  {
+   "rids": [
+    2879,
+    2911
+   ],
+   "aspect_votes": {
+    "الجلسات": 2
+   },
+   "sentiment_votes": {
+    "ايجابي": 2
+   },
+   "outcome": "kept_representative"
+  },
+  {
+   "rids": [
+    2884,
+    2916
+   ],
+   "aspect_votes": {
+    "المأكولات": 2
+   },
+   "sentiment_votes": {
+    "محايد": 2
+   },
+   "outcome": "kept_representative"
+  },
+  {
+   "rids": [
+    2901,
+    2943
+   ],
+   "aspect_votes": {
+    "الخدمة": 2
+   },
+   "sentiment_votes": {
+    "ايجابي": 2
+   },
+   "outcome": "kept_representative"
+  }
+ ],
+ "no_arabic_text_rids": []
+}
