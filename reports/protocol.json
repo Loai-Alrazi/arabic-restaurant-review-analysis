@@ -1,0 +1,285 @@
+{
+ "bootstrap": {
+  "level": 0.95,
+  "resamples": 2000,
+  "seed": 0,
+  "unit": "group_id"
+ },
+ "clean_rerun": [
+  {
+   "max_fold_diff": 0.0,
+   "name": "dummy_most_frequent",
+   "original_mean": 0.2601,
+   "original_sha": "b101ad8+dirty",
+   "rerun_mean": 0.2601,
+   "rerun_sha": "622b560",
+   "task": "sentiment"
+  },
+  {
+   "max_fold_diff": 0.0,
+   "name": "dummy_stratified",
+   "original_mean": 0.3479,
+   "original_sha": "b101ad8+dirty",
+   "rerun_mean": 0.3479,
+   "rerun_sha": "622b560",
+   "task": "sentiment"
+  },
+  {
+   "max_fold_diff": 0.0,
+   "name": "logreg_word11",
+   "original_mean": 0.5236,
+   "original_sha": "b101ad8+dirty",
+   "rerun_mean": 0.5236,
+   "rerun_sha": "622b560",
+   "task": "sentiment"
+  },
+  {
+   "max_fold_diff": 0.0,
+   "name": "a6_balanced",
+   "original_mean": 0.656,
+   "original_sha": "83132aa",
+   "rerun_mean": 0.656,
+   "rerun_sha": "622b560",
+   "task": "sentiment"
+  },
+  {
+   "max_fold_diff": 0.0,
+   "name": "m4_logreg_C0.3",
+   "original_mean": 0.6529,
+   "original_sha": "db1d5db",
+   "rerun_mean": 0.6529,
+   "rerun_sha": "622b560",
+   "task": "sentiment"
+  },
+  {
+   "max_fold_diff": 0.0,
+   "name": "dummy_most_frequent",
+   "original_mean": 0.0963,
+   "original_sha": "b101ad8+dirty",
+   "rerun_mean": 0.0963,
+   "rerun_sha": "622b560",
+   "task": "aspect"
+  },
+  {
+   "max_fold_diff": 0.0,
+   "name": "dummy_stratified",
+   "original_mean": 0.2016,
+   "original_sha": "b101ad8+dirty",
+   "rerun_mean": 0.2016,
+   "rerun_sha": "622b560",
+   "task": "aspect"
+  },
+  {
+   "max_fold_diff": 0.0,
+   "name": "logreg_word11",
+   "original_mean": 0.7923,
+   "original_sha": "b101ad8+dirty",
+   "rerun_mean": 0.7923,
+   "rerun_sha": "622b560",
+   "task": "aspect"
+  },
+  {
+   "max_fold_diff": 0.0,
+   "name": "a6_balanced",
+   "original_mean": 0.9069,
+   "original_sha": "83132aa",
+   "rerun_mean": 0.9069,
+   "rerun_sha": "622b560",
+   "task": "aspect"
+  },
+  {
+   "max_fold_diff": 0.0,
+   "name": "m4_logreg_C3",
+   "original_mean": 0.9101,
+   "original_sha": "db1d5db",
+   "rerun_mean": 0.9101,
+   "rerun_sha": "622b560",
+   "task": "aspect"
+  }
+ ],
+ "dev_rows": 2215,
+ "dev_sha256": "f0d6dc75ebd542d24cb04993bd4a492c13bd14433d91b05b58828acbd795c708",
+ "fingerprint": "250d1d7cbaa75a17d8d162c8028b44bdd438323ae4af9e17716c4ebd49c12131",
+ "fresh_seeds": [
+  100,
+  101,
+  102
+ ],
+ "joint_expected_range": {
+  "high": 0.745713,
+  "low": 0.671308,
+  "mean": 0.70851,
+  "n": 15,
+  "sd": 0.018601
+ },
+ "split_sha256": "6a8a686fc143992313443060c5106ed80dd78a09013e85665bbeea39930a70f0",
+ "tasks": {
+  "aspect": {
+   "certainty": {
+    "fresh_levels": [
+     {
+      "accuracy": 0.98302,
+      "level": "high",
+      "n": 4947,
+      "share": 0.74447
+     },
+     {
+      "accuracy": 0.773451,
+      "level": "medium",
+      "n": 1130,
+      "share": 0.170053
+     },
+     {
+      "accuracy": 0.514085,
+      "level": "low",
+      "n": 568,
+      "share": 0.085478
+     }
+    ],
+    "score": "highest class probability of the logistic-regression pipeline",
+    "selection_levels": [
+     {
+      "accuracy": 0.980317,
+      "level": "high",
+      "n": 4928,
+      "share": 0.74161
+     },
+     {
+      "accuracy": 0.793679,
+      "level": "medium",
+      "n": 1139,
+      "share": 0.171407
+     },
+     {
+      "accuracy": 0.49827,
+      "level": "low",
+      "n": 578,
+      "share": 0.086983
+     }
+    ],
+    "thresholds": {
+     "high": 0.6,
+     "medium": 0.4
+    }
+   },
+   "expected_range": {
+    "final": {
+     "high": 0.939326,
+     "low": 0.881887,
+     "mean": 0.910607,
+     "n": 15,
+     "sd": 0.01436
+    },
+    "reference": {
+     "high": 0.830908,
+     "low": 0.758703,
+     "mean": 0.794806,
+     "n": 15,
+     "sd": 0.018051
+    }
+   },
+   "final": {
+    "class_weight": "balanced",
+    "model": "logreg",
+    "name": "m4_logreg_C3",
+    "normalisation": "none",
+    "params": {
+     "C": 3
+    },
+    "representation": "char25"
+   },
+   "reference": {
+    "class_weight": null,
+    "model": "logreg",
+    "name": "logreg_word11",
+    "normalisation": "none",
+    "params": {},
+    "representation": "word11"
+   }
+  },
+  "sentiment": {
+   "certainty": {
+    "fresh_levels": [
+     {
+      "accuracy": 0.937153,
+      "level": "high",
+      "n": 2339,
+      "share": 0.351994
+     },
+     {
+      "accuracy": 0.817474,
+      "level": "medium",
+      "n": 1797,
+      "share": 0.270429
+     },
+     {
+      "accuracy": 0.592666,
+      "level": "low",
+      "n": 2509,
+      "share": 0.377577
+     }
+    ],
+    "score": "highest class probability of the logistic-regression pipeline",
+    "selection_levels": [
+     {
+      "accuracy": 0.941612,
+      "level": "high",
+      "n": 2295,
+      "share": 0.345372
+     },
+     {
+      "accuracy": 0.831781,
+      "level": "medium",
+      "n": 1825,
+      "share": 0.274643
+     },
+     {
+      "accuracy": 0.579406,
+      "level": "low",
+      "n": 2525,
+      "share": 0.379985
+     }
+    ],
+    "thresholds": {
+     "high": 0.6,
+     "medium": 0.5
+    }
+   },
+   "expected_range": {
+    "final": {
+     "high": 0.705996,
+     "low": 0.606893,
+     "mean": 0.656444,
+     "n": 15,
+     "sd": 0.024776
+    },
+    "reference": {
+     "high": 0.585827,
+     "low": 0.477464,
+     "mean": 0.531645,
+     "n": 15,
+     "sd": 0.027091
+    }
+   },
+   "final": {
+    "class_weight": "balanced",
+    "model": "logreg",
+    "name": "m4_logreg_C0.3",
+    "normalisation": "none",
+    "params": {
+     "C": 0.3
+    },
+    "representation": "word11+char25"
+   },
+   "reference": {
+    "class_weight": null,
+    "model": "logreg",
+    "name": "logreg_word11",
+    "normalisation": "none",
+    "params": {},
+    "representation": "word11"
+   }
+  }
+ },
+ "version": 1
+}

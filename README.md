@@ -27,8 +27,13 @@ python -m arabic_reviews ingest     # تنزيل الملف من Zenodo عند �
 python -m arabic_reviews validate   # فحص المخطط والجودة والإصلاح المحافظ → data/processed/validated.csv (محلي)
 python -m arabic_reviews split      # تجميع شبه المكررات والتقسيم → data/splits/split_v1.csv + reports/split.md
 python -m arabic_reviews eda        # تحليل استكشافي على بيانات التطوير فقط → reports/eda.md + reports/figures/
+python -m arabic_reviews experiments  # خطوط الأساس وتجارب الإزالة/الإضافة على 3×5 CV → reports/experiments.csv + reports/ablations.md
+python -m arabic_reviews models     # عائلات النماذج والضبط المحدود وتحليل الأخطاء → reports/models.md + reports/error_analysis.md
+python -m arabic_reviews protocol   # تجميد البروتوكول قبل الاختبار (يتطلب شجرة Git نظيفة) → reports/final_protocol.md + reports/protocol.json
 python -m pytest -q
 ```
+
+بروتوكول التقييم المجمّد قبل قراءة الاختبار المحجوز: [`reports/final_protocol.md`](reports/final_protocol.md) (الإعدادات النهائية، مستويات اليقين، المدى المتوقع ببذور CV جديدة، وإجراء الاختبار لمرة واحدة).
 
 مخرجات التحقق المنشورة: [`reports/data_quality.md`](reports/data_quality.md) (تقرير الجودة وأثر كل خطوة على عدد السجلات) و[`reports/lineage.json`](reports/lineage.json) (سجل كل استبعاد وكل حل لوسوم المكررات). إعادة التشغيل تنتج الملفات نفسها بايتًا ببايت.
 
