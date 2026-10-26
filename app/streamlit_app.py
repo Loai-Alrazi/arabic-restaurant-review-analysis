@@ -1,8 +1,11 @@
 """Arabic demo page: type a cafe review, see its predicted sentiment and main aspect.
 
 Run from the repository root (so .streamlit/config.toml applies):  streamlit run app/streamlit_app.py
-URL options: ?example=<key> fills one of EXAMPLES so its result shows on load; ?view=method opens
-the methodology tab.
+URL options: ?example=<key> fills and analyses one of EXAMPLES (on load, and again whenever the value
+changes in the same session, e.g. by back/forward); ?view=method opens the methodology tab.
+
+A result is shown only for text that was submitted («حلّل المراجعة» or an example) and has not been
+edited since; editing the text hides the old result until it is submitted again.
 
 The page uses version 2 when its model card and saved pipelines are present, otherwise version 1
 (decided once per session). It reaches the models only through ``get_card`` and ``run_prediction``,
@@ -74,7 +77,7 @@ EXAMPLES = {
 
 NOTES = {
     "long_text": "المراجعة أطول من معظم مراجعات التدريب؛ قد تقل الدقة.",
-    "very_short": "المراجعة قصيرة جدًا؛ النتيجة أقل ثباتًا.",
+    "very_short": "المراجعة قصيرة جدًا وقد لا تحمل سياقًا كافيًا.",
     "library_version": "إصدار المكتبة يختلف عن إصدار التدريب؛ أعد بناء النماذج.",
 }
 MISSING_MODELS = "النماذج المحفوظة غير موجودة. شغّل: `{command}`"
@@ -145,26 +148,56 @@ def pct(x: float) -> str:
 # --------------------------------------------------------------------------- state and callbacks
 
 
+# "review" is the text area. "submitted" is the text of the last analysis request (None before the first):
+# the result follows it, not the text area. "example_param" is the last ?example= value the page has
+# applied; the callbacks below keep it equal to the URL, so a value that differs at the top of a run came
+# from outside (a link, back/forward) and is applied once.
+
+EDITED = "تغيّر النص بعد آخر تحليل. اضغط «حلّل المراجعة» لتحليل النص الحالي."
+EMPTY = "ستظهر النتيجة هنا: مشاعر المراجعة وجانبها الرئيسي، ومدى ثقة النموذج في كلٍّ منهما."
+
+
 def init_state() -> None:
-    if "review" not in st.session_state:
-        key = st.query_params.get("example")
-        st.session_state["review"] = EXAMPLES[key].text if key in EXAMPLES else ""
+    """Defaults, then any new ?example= value; runs before the text area is created."""
+    st.session_state.setdefault("review", "")
+    st.session_state.setdefault("submitted", None)
+    st.session_state.setdefault("example_param", None)
+    key = st.query_params.get("example")
+    if key == st.session_state["example_param"]:
+        return
+    if key in EXAMPLES:
+        st.session_state["review"] = st.session_state["submitted"] = EXAMPLES[key].text
+        st.session_state["example_param"] = key
+    else:
+        if key is not None:
+            st.query_params.pop("example")  # unknown example: keep the text, clean the URL
+        st.session_state["example_param"] = None
 
 
 def use_example(key: str) -> None:
-    st.session_state["review"] = EXAMPLES[key].text
+    """An example chip fills the text area and submits it."""
+    st.session_state["review"] = st.session_state["submitted"] = EXAMPLES[key].text
+    st.session_state["example_param"] = key
     st.query_params["example"] = key
+
+
+def submit_review() -> None:
+    st.session_state["submitted"] = st.session_state["review"]
 
 
 def clear_review() -> None:
     st.session_state["review"] = ""
+    st.session_state["submitted"] = None
+    st.session_state["example_param"] = None
     st.query_params.pop("example", None)
 
 
 def review_edited() -> None:
+    """Text edited by hand: the URL no longer names an example unless the text still is that example."""
     key = st.query_params.get("example")
     if key and (key not in EXAMPLES or EXAMPLES[key].text != st.session_state["review"]):
         st.query_params.pop("example", None)
+        st.session_state["example_param"] = None
 
 
 # --------------------------------------------------------------------------- result
@@ -228,25 +261,27 @@ def render_analysis(version: str) -> None:
         on_change=review_edited,
     )
     with st.container(horizontal=True, gap="small", key="actions"):
-        st.button("حلّل المراجعة", type="primary", icon=":material/analytics:", key="analyse")
+        st.button("حلّل المراجعة", type="primary", icon=":material/analytics:", key="analyse",
+                  on_click=submit_review)
         st.button("مسح", type="tertiary", icon=":material/close:", key="clear", on_click=clear_review,
                   disabled=not st.session_state["review"])
     with st.container(key="examples", gap="small"):
         st.caption("أو جرّب مثالًا:")
-        # One row of chips; on a phone it scrolls sideways instead of taking several rows.
-        with st.container(horizontal=True, wrap=False, gap="small", key="example-row"):
+        # The chips wrap into as many rows as the width needs, so every example stays visible.
+        with st.container(horizontal=True, wrap=True, gap="small", key="example-row"):
             for key, example in EXAMPLES.items():
                 st.button(example.button, key=f"example-{key}", on_click=use_example, args=(key,))
 
-    review = st.session_state["review"]
-    if not review.strip():
+    review, submitted = st.session_state["review"], st.session_state["submitted"]
+    if submitted is None or submitted != review:
+        # Nothing submitted yet, or the text changed since: no result (an old one would describe other text).
+        edited = submitted is not None and review.strip()
         with st.container(border=True, key="result-empty"):
-            st.caption(f"{icon('edit_note')} ستظهر النتيجة هنا: مشاعر المراجعة وجانبها الرئيسي، "
-                       "ومدى ثقة النموذج في كلٍّ منهما.", unsafe_allow_html=True)
+            st.caption(f"{icon('edit_note')} {EDITED if edited else EMPTY}", unsafe_allow_html=True)
     else:
         try:
             with st.spinner("جارٍ التحليل…"):
-                result = run_prediction(review, version)
+                result = run_prediction(submitted, version)
         except InvalidReview as err:
             st.warning(err.message, icon=":material/edit_note:")
         except FileNotFoundError:
@@ -286,7 +321,8 @@ def _baseline_sentence(decision: dict | None) -> str:
         parts.append("ليس أعلى من النموذج المرجعي")
     dummies = decision.get("beats_dummies", {})
     if dummies:
-        parts.append(f"يتفوق على النموذجين البسيطين ({ltr('Dummy')})" if all(dummies.values())
+        beaten = "النموذجين البسيطين" if len(dummies) == 2 else "كل النماذج البسيطة"
+        parts.append(f"يتفوق على {beaten} ({ltr('Dummy')})" if all(dummies.values())
                      else f"لا يتفوق على كل النماذج البسيطة ({ltr('Dummy')})")
     return "، و".join(parts) + "." if parts else ""
 
@@ -500,7 +536,8 @@ def render_v2_certainty(version_label: str, card: dict) -> None:
                     st.caption("اسحب الجدول جانبيًا لرؤية بقية الأعمدة.")
                 st.table(rows, hide_index=True, alt=f"مستويات الثقة في الإصدار 2 على بيانات التطوير · {title}")
     st.caption(
-        "تكرارات رُصدت على بيانات التطوير (الطيات الخارجية للتحقق المتقاطع، وكل مراجعة فيها ثلاث مرات)، "
+        "تكرارات رُصدت على بيانات التطوير (الطيات الخارجية للتحقق المتقاطع المكرَّر، وتظهر كل مراجعة "
+        "في كل تكرار)، "
         "وليست ضمانًا لصحة أي تنبؤ جديد؛ ولا يوجد اختبار مستقل للإصدار 2. «بقاعدة الإصدار 1»: نسبة الصحيح "
         "(وعدد الصفوف) بزوج عتبات الإصدار 1 على الطيات نفسها. الحصة: نسبة الخانة من كل التنبؤات؛ "
         "الصفوف: عدد التنبؤات."
@@ -550,7 +587,8 @@ def render_known_limits(version: str) -> None:
     lines = [
         "جانب رئيسي واحد لكل مراجعة؛ لا يحلل النموذج مشاعر كل جانب مذكور في النص.",
         f"النطاق مقاهي الرياض على {ltr('Google Maps')}؛ لم يُقس الأداء على مطاعم أو لهجات أخرى.",
-        "لا يكشف النموذج السخرية، والنفي لا يُلتقط إلا من تتابع الكلمات والحروف.",
+        "السخرية والرأي الضمني لم يُقيَّما منفصلين، وقد يُصنَّفان خطأً.",
+        "النفي لا يُلتقط إلا من تتابع الكلمات والحروف.",
         "النص الوصفي الخالي من الرأي قد يأخذ وسمًا إيجابيًا أو سلبيًا غير مقصود.",
         "نص من حروف عربية بلا معنى لا يُرفض دائمًا؛ ثقة النموذج المنخفضة هي الإشارة الوحيدة حينها.",
     ]

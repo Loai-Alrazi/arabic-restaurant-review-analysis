@@ -110,15 +110,16 @@
   min-height: 2.75rem;
 }
 
-/* Examples: one sideways-scrolling row on phones; wider screens wrap instead (no hidden chips for
-   mouse users). The padding leaves room for the keyboard focus ring inside the scrolling row. */
-.st-key-example-row {
-  padding: 0.25rem;
-}
-
-@media (min-width: 641px) {
+/* Examples wrap into rows at every width, so none is hidden. On phones the chips are narrower and
+   closer together, so the examples take few rows; they keep their 44 px touch height. */
+@media (max-width: 640px) {
   .st-key-example-row {
-    flex-wrap: wrap;
+    gap: 0.4rem;
+  }
+
+  .st-key-example-row button {
+    padding-left: 0.6rem;
+    padding-right: 0.6rem;
   }
 }
 
