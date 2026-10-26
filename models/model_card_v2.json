@@ -1,7 +1,7 @@
 {
  "name": "Arabic cafe review sentiment and main-aspect classifiers, version 2",
  "version": "v2",
- "fingerprint": "1ca1c3de265fa5e6eb80f0f75bb23a89ac7ef4dee23b238d6f016e553a5e7aae",
+ "fingerprint": "f13c2eedaba79948278a1004d1a1c71014d43c17e84e739e4c1cb0b4c8ab33e0",
  "released_sentiment": "V1",
  "adopted_new_sentiment_model": false,
  "evaluation": "development data only (grouped CV); no independent test exists for version 2, and the old held-out test was not used",

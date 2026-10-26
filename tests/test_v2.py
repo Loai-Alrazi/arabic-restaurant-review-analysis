@@ -260,18 +260,69 @@ def test_release_module_is_not_a_source_of_the_results():
     assert "v2_release" not in v2.SOURCES and set(v2.source_hashes()) == set(v2.SOURCES)
 
 
+def _released_specs(r):
+    frozen = v2.frozen_specs()
+    return {"sentiment": v2.candidates(frozen["sentiment"])[r["released"]], "aspect": frozen["aspect"]}
+
+
 def test_committed_protocol_has_the_released_fingerprint_and_rebuilds_from_the_committed_results():
     import hashlib
 
-    from arabic_reviews import v2_release
+    from arabic_reviews import v2_fingerprint, v2_release
 
     committed = json.loads(v2.PROTOCOL_FILE.read_text(encoding="utf-8"))
-    assert committed["fingerprint"] == v2_release.FROZEN_FINGERPRINT
+    assert committed["fingerprint"] == v2_fingerprint.FROZEN_FINGERPRINT
+    assert committed["release_sha256"] == v2_release.release_sha256()
     text = v2.RESULTS_JSON.read_text(encoding="utf-8")
     r = json.loads(text)
-    frozen = v2.frozen_specs()
-    specs = {"sentiment": v2.candidates(frozen["sentiment"])[r["released"]], "aspect": frozen["aspect"]}
     sha = hashlib.sha256(text.replace("\r\n", "\n").encode("utf-8")).hexdigest()
-    assert v2_release.protocol_v2(r, specs, sha)["fingerprint"] == v2_release.FROZEN_FINGERPRINT
+    assert v2_release.protocol_v2(r, _released_specs(r), sha)["fingerprint"] == v2_fingerprint.FROZEN_FINGERPRINT
     card = json.loads(v2.CARD_FILE.read_text(encoding="utf-8"))
-    assert card["fingerprint"] == v2_release.FROZEN_FINGERPRINT and card["released_sentiment"] == r["released"]
+    assert card["fingerprint"] == v2_fingerprint.FROZEN_FINGERPRINT and card["released_sentiment"] == r["released"]
+
+
+def test_the_release_code_is_part_of_the_fingerprint(monkeypatch):
+    from arabic_reviews import v2_release
+
+    r = json.loads(v2.RESULTS_JSON.read_text(encoding="utf-8"))
+    base = v2_release.protocol_v2(r, _released_specs(r), "a")
+    monkeypatch.setattr(v2_release, "release_sha256", lambda: "0" * 64)
+    assert v2_release.protocol_v2(r, _released_specs(r), "a")["fingerprint"] != base["fingerprint"]
+
+
+def _build_outputs_to(tmp_path, monkeypatch):
+    from arabic_reviews import v2_release
+
+    for name in ("MODELS_DIR", "PROTOCOL_FILE", "CARD_FILE"):
+        monkeypatch.setattr(v2_release, name, tmp_path / getattr(v2_release, name).name)
+    return v2_release
+
+
+def test_a_build_refuses_another_protocol_before_verifying_fitting_or_writing(tmp_path, monkeypatch):
+    v2_release = _build_outputs_to(tmp_path, monkeypatch)
+    verified = []
+
+    def refuse():
+        raise RuntimeError("not the released fingerprint")
+
+    monkeypatch.setattr(v2_release, "released_protocol", refuse)
+    monkeypatch.setattr(v2_release, "verify_results", lambda: verified.append(True))
+    for verify in (False, True):
+        with pytest.raises(RuntimeError, match="released fingerprint"):
+            v2_release.build(verify=verify)
+    assert verified == [] and list(tmp_path.iterdir()) == []
+
+
+def test_models_are_saved_only_after_their_digests_pass(tmp_path, monkeypatch):
+    from arabic_reviews import final
+
+    v2_release = _build_outputs_to(tmp_path, monkeypatch)
+    r = {"released": "V1"}
+    monkeypatch.setattr(v2_release, "released_protocol", lambda: (r, _released_specs(r), {}, toy_dev()))
+    digests = tmp_path / "digests.json"
+    digests.write_text(json.dumps({"versions": final.runtime_versions(),
+                                   "digests": {"sentiment": "other", "aspect": "other"}}), encoding="utf-8")
+    monkeypatch.setattr(final, "DIGESTS_FILE", digests)
+    with pytest.raises(RuntimeError, match="digest differs"):
+        v2_release.build()
+    assert sorted(p.name for p in tmp_path.iterdir()) == ["digests.json"]

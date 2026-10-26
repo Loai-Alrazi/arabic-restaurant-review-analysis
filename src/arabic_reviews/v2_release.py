@@ -2,12 +2,13 @@
 
 ``build`` derives the version-2 protocol from ``reports/v2/results.json``, refuses results computed on
 other data, by other code or under other library versions, refuses any protocol whose fingerprint is not
-the released one, fits the version-2 pipelines on the whole development partition (local files) and
-writes the version-2 model card. ``build(verify=True)`` first recomputes every result. Everything runs
-inside ``v2.guard()``; the held-out test is never read.
+the released one (``v2_fingerprint``), fits the version-2 pipelines on the whole development partition
+(local files) and writes the version-2 model card. ``build(verify=True)`` also recomputes every result,
+after the fingerprint check. Everything runs inside ``v2.guard()``; the held-out test is never read.
 
 This module is not among ``v2.SOURCES``: it only freezes and builds from the results, so changing it does
-not change what the results depend on.
+not change what the results depend on. Its own hash (``release_sha256``) is part of the protocol
+fingerprint instead, so a change to it needs a new release build.
 """
 
 from __future__ import annotations
@@ -20,21 +21,25 @@ from pathlib import Path
 import joblib
 import pandas as pd
 
-from . import config, experiments, final, protocol, split
+from . import config, experiments, final, protocol, split, v2_fingerprint
 from .features import build_pipeline
 from .v2 import (ASPECT_LABELS, CARD_FILE, DROP_SLACK, EDGE_SLACK, EDGE_WIDTH, GRID, LABELS, MIN_GAIN, MIN_GROUPS,
                  MIN_NEUTRAL_GAIN, MIN_OTHER_CHANGE, MIN_WINS, MODELS_DIR, NEUTRAL, OUTER_SEEDS, PROTOCOL_FILE,
                  RESULTS_JSON, TARGETS, _round, _run, candidates, check_frozen_cues, file_sha256, frozen_specs, guard,
                  runtime_versions, same_runtime, source_hashes)
 
-# Fingerprint of reports/v2/protocol_v2.json as released; None only before the first release build.
-FROZEN_FINGERPRINT: str | None = "1ca1c3de265fa5e6eb80f0f75bb23a89ac7ef4dee23b238d6f016e553a5e7aae"
+
+def release_sha256() -> str:
+    """SHA-256 of this module (line endings normalised): the code that fits the models and writes the card."""
+    return hashlib.sha256(Path(__file__).read_bytes().replace(b"\r\n", b"\n")).hexdigest()
+
 
 def protocol_v2(r: dict, specs: dict[str, dict], results_sha256: str) -> dict:
     """The fingerprinted version-2 protocol. ``results_sha256`` (line endings normalised) binds every number
-    and decision of results.json, so an edited results file changes the fingerprint."""
+    and decision of results.json and ``release_sha256`` the code of this module, so an edited results file
+    or release code changes the fingerprint."""
     pipelines = {task: protocol.pipeline_params(spec) for task, spec in specs.items()}
-    body = dict(results_sha256=results_sha256,
+    body = dict(results_sha256=results_sha256, release_sha256=release_sha256(),
         version="v2", plan="docs/V2_PLAN.md", released=r["released"], adopted=r["adopted"],
         configurations={task: experiments._spec_summary(spec) | {"params": spec.get("params", {}),
                                                                  "cues": bool(spec.get("cues"))}
@@ -73,47 +78,58 @@ def verify_results() -> None:
         raise RuntimeError("recomputed results differ from reports/v2/results.json; the build was not started")
 
 
+def released_protocol() -> tuple[dict, dict[str, dict], dict, pd.DataFrame]:
+    """The checks of ``build``, inside ``guard()``: results.json computed on this data and cue list, by this
+    code and under these library versions, and a protocol with the released fingerprint. Returns the
+    results, the specifications, the protocol and the development partition."""
+    cue_sha = check_frozen_cues()
+    results_text = RESULTS_JSON.read_text(encoding="utf-8")
+    r = json.loads(results_text)
+    dev = split.load_dev()
+    if r["cues_sha256"] != cue_sha or r["dev"]["sha256"] != file_sha256(config.DEV_FILE) \
+            or r["dev"]["split_sha256"] != file_sha256(config.SPLIT_FILE):
+        raise RuntimeError("results.json was computed on other data or another cue list; re-run v2-experiments")
+    if r.get("sources") != source_hashes():
+        raise RuntimeError("results.json was computed by other code; re-run v2-experiments")
+    if not same_runtime(r["versions"]):
+        raise RuntimeError("the installed library versions differ from those of results.json; install "
+                           "requirements.txt or re-run v2-experiments")
+    frozen = frozen_specs()
+    specs = {"sentiment": candidates(frozen["sentiment"])[r["released"]], "aspect": frozen["aspect"]}
+    p = protocol_v2(r, specs, hashlib.sha256(results_text.replace("\r\n", "\n").encode("utf-8")).hexdigest())
+    released = v2_fingerprint.FROZEN_FINGERPRINT
+    if released is not None and p["fingerprint"] != released:
+        raise RuntimeError(f"the version-2 protocol fingerprint {p['fingerprint'][:12]}... is not the released "
+                           f"{released[:12]}...: results.json, the release code, the code or the data changed")
+    return r, specs, p, dev
+
+
 def build(verify: bool = False) -> dict:
     """Freeze the version-2 protocol from ``results.json`` and fit the version-2 pipelines on the whole
     development partition (local files), then write the version-2 model card. The protocol must have the
-    released fingerprint (``FROZEN_FINGERPRINT``), which binds the hash of results.json, so an edited
-    results file is refused before any model is fitted. With ``verify`` every result is also recomputed
-    first and must equal the committed one."""
+    released fingerprint, which binds the hashes of results.json and of this module, so an edited results
+    file or release code is refused before anything is fitted or written. With ``verify`` every result is
+    then recomputed and must equal the committed one. Models are saved only once their digests pass."""
     if verify:
+        with guard():
+            released_protocol()
         verify_results()
     with guard() as opened:
-        cue_sha = check_frozen_cues()
-        results_text = RESULTS_JSON.read_text(encoding="utf-8")
-        r = json.loads(results_text)
-        dev = split.load_dev()
-        if r["cues_sha256"] != cue_sha or r["dev"]["sha256"] != file_sha256(config.DEV_FILE) \
-                or r["dev"]["split_sha256"] != file_sha256(config.SPLIT_FILE):
-            raise RuntimeError("results.json was computed on other data or another cue list; re-run v2-experiments")
-        if r.get("sources") != source_hashes():
-            raise RuntimeError("results.json was computed by other code; re-run v2-experiments")
+        r, specs, p, dev = released_protocol()
         runtime = runtime_versions()
-        if not same_runtime(r["versions"]):
-            raise RuntimeError("the installed library versions differ from those of results.json; install "
-                               "requirements.txt or re-run v2-experiments")
-        frozen = frozen_specs()
-        specs = {"sentiment": candidates(frozen["sentiment"])[r["released"]], "aspect": frozen["aspect"]}
-        p = protocol_v2(r, specs, hashlib.sha256(results_text.replace("\r\n", "\n").encode("utf-8")).hexdigest())
-        if FROZEN_FINGERPRINT is not None and p["fingerprint"] != FROZEN_FINGERPRINT:
-            raise RuntimeError(f"the version-2 protocol fingerprint {p['fingerprint'][:12]}... is not the released "
-                               f"{FROZEN_FINGERPRINT[:12]}...: results.json, the code or the data changed")
         X = dev["text"].to_numpy()
-        MODELS_DIR.mkdir(parents=True, exist_ok=True)
-        digests = {}
-        for task, spec in specs.items():
-            model = build_pipeline(spec).fit(X, dev[experiments.TASKS[task]].to_numpy())
-            joblib.dump(model, MODELS_DIR / f"{task}.joblib")
-            digests[task] = final.dev_digest(model, X)
+        models = {task: build_pipeline(spec).fit(X, dev[experiments.TASKS[task]].to_numpy())
+                  for task, spec in specs.items()}
+        digests = {task: final.dev_digest(model, X) for task, model in models.items()}
         recorded = json.loads(final.DIGESTS_FILE.read_text(encoding="utf-8"))
         same_versions = recorded["versions"] == final.runtime_versions()
         for task in specs:
             same_model = task == "aspect" or r["released"] == "V1"
             if same_model and same_versions and digests[task] != recorded["digests"][task]:
                 raise RuntimeError(f"the version-2 {task} model should equal the version-1 one but its digest differs")
+        MODELS_DIR.mkdir(parents=True, exist_ok=True)
+        for task, model in models.items():
+            joblib.dump(model, MODELS_DIR / f"{task}.joblib")
         card = model_card_v2(r, p, specs, digests, dev)
         outputs = {path.resolve().relative_to(config.ROOT.resolve()).as_posix() for path in (PROTOCOL_FILE, CARD_FILE)}
         build_record = dict(read=sorted(opened["read"]), written=sorted(opened["written"] | outputs),
