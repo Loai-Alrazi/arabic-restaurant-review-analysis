@@ -23,6 +23,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 import streamlit as st  # noqa: E402
 
+from arabic_reviews import config  # noqa: E402
 from arabic_reviews.predict import (  # noqa: E402
     InvalidReview, MAX_CHARS, Prediction, TaskResult, available_versions, model_card, predict, thresholds_for)
 
@@ -327,6 +328,12 @@ def _baseline_sentence(decision: dict | None) -> str:
     return "، و".join(parts) + "." if parts else ""
 
 
+def _measured(card: dict) -> str:
+    """How often the held-out test was read, from the card's test record."""
+    run = card["test_run"]["run"]
+    return "مرة واحدة" if run == 1 else f"في التشغيل المسجّل رقم {ltr(str(run))}"
+
+
 def render_methodology(version_label: str, card: dict) -> None:
     """Methodology and frozen results of one model version; every number comes from ``card``."""
     tasks = card.get("tasks", {})
@@ -335,7 +342,7 @@ def render_methodology(version_label: str, card: dict) -> None:
 
     st.header(f"{version_label}: نتائج مجمَّدة من اختبار محجوز", anchor=False)
     st.caption(
-        "قيست هذه النتائج مرة واحدة على مراجعات محجوزة لم تُستخدم في التدريب ولا في أي اختيار، "
+        f"قيست هذه النتائج {_measured(card)} على مراجعات محجوزة لم تُستخدم في التدريب ولا في أي اختيار، "
         "بعد تجميد النموذج والعتبات."
     )
 
@@ -348,9 +355,13 @@ def render_methodology(version_label: str, card: dict) -> None:
         "**«محايد»** في هذه البيانات يعني غالبًا رأيًا **مختلطًا** (إيجابي وسلبي معًا) أو **فاترًا**، "
         "لا نصًا خاليًا من الرأي. وهي أصغر الفئات وأصعبها.",
     )))
+    st.caption(f"تعريف الوسوم بأمثلة حقيقية في {ltr('docs/PROBLEM_FRAMING.md')}")
 
     st.subheader("البيانات والترخيص", anchor=False)
-    data_lines = [f"مراجعات {ltr('Google Maps')} لمقاهي الرياض، بلهجة سعودية غالبًا ({ltr('Al-Dossari, 2025')})."]
+    source_surname = config.SOURCE["creator"].split()[-1]
+    source_year = config.SOURCE["publication_date"][:4]
+    data_lines = [f"مراجعات {ltr('Google Maps')} لمقاهي الرياض، بلهجة سعودية غالبًا "
+                  f"({ltr(f'{source_surname}, {source_year}')})."]
     source = card.get("source")
     if source:
         data_lines.append(f"المصدر: [صفحة البيانات على {ltr('Zenodo')}]({source['record']})، "
@@ -401,7 +412,7 @@ def render_methodology(version_label: str, card: dict) -> None:
     st.markdown(
         "مستوى الثقة وصف لنطاق أعلى درجة يعطيها النموذج لتنبؤه، **وليس احتمالًا معايرًا**. "
         "في قاعدة الإصدار 1 زوج عتبات واحد لكل مهمة، يسري على كل الفئات. "
-        "الجدولان يبيّنان ما لوحظ بهذه القاعدة مرة واحدة على الاختبار المحجوز: حصة المراجعات في كل مستوى، "
+        f"الجدولان يبيّنان ما لوحظ بهذه القاعدة {_measured(card)} على الاختبار المحجوز: حصة المراجعات في كل مستوى، "
         "ونسبة التنبؤات الصحيحة فيه. هذه تكرارات رُصدت على بيانات سابقة، **وليست ضمانًا** لصحة أي تنبؤ جديد."
     )
     level_cols = st.columns(2)
@@ -453,7 +464,7 @@ def render_overview(v1_card: dict, v2_card: dict) -> None:
     with st.container(border=True, key="overview"):
         st.header("ما الذي يعمل في هذه الصفحة؟", anchor=False)
         if tasks2 and all(spec.get("same_as_v1") for spec in tasks2.values()):
-            first = ("**المصنِّفان** هما مصنِّفا الإصدار 1 دون أي تغيير، وقد قِيسا مرة واحدة على "
+            first = (f"**المصنِّفان** هما مصنِّفا الإصدار 1 دون أي تغيير، وقد قِيسا {_measured(v1_card)} على "
                      "اختبار محجوز (القسم التالي).")
         else:
             first = "**المصنِّفان** من الإصدار 2، ولم يُقاسا على الاختبار المحجوز."

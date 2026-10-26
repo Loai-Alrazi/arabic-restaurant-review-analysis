@@ -22,6 +22,15 @@
   font-size: 1.05rem;
 }
 
+/* The review boundary clears 3:1 against both theme backgrounds; focus keeps the primary colour. */
+.st-key-review [data-testid="stTextAreaRootElement"] {
+  border-color: #7a746b;
+}
+
+.st-key-review [data-testid="stTextAreaRootElement"]:focus-within {
+  border-color: #1F6F64;  /* primaryColor */
+}
+
 /* List markers sit on the right: move the item indent from the left side to the right side. */
 [data-testid="stMain"] [data-testid="stMarkdownContainer"] li,
 [data-testid="stMain"] [data-testid="stCaptionContainer"] li {

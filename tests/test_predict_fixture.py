@@ -58,6 +58,7 @@ def tiny_models(tmp_path, monkeypatch):
                   "python": platform.python_version()},
         tasks=dict(sentiment=_task_card("sentiment", ["ايجابي", "سلبي"]),
                    aspect=_task_card("aspect", ["القهوة", "الخدمة", "الاسعار"])),
+        test_run=dict(run=1, test_rows=30),
         joint_test_accuracy=0.7,
         input=dict(development_length_chars=dict(p99=60)),
     )
@@ -244,6 +245,33 @@ def test_app_smoke(tiny_models):
     assert not linked.exception and linked.text_area[0].value == SERVICE
     assert_shows(linked, SERVICE)
     assert_no_numbers(linked.get_by_key("result"))
+
+
+def test_methodology_uses_card_and_source_provenance(tiny_models, monkeypatch):
+    from streamlit.testing.v1 import AppTest
+
+    card_path = tiny_models / "models" / "model_card.json"
+    card = json.loads(card_path.read_text(encoding="utf-8"))
+    card["tasks"]["sentiment"]["test"]["macro_f1"] = 0.4321
+    monkeypatch.setattr(config, "SOURCE", {"creator": "Test Author", "publication_date": "1999-01-01"})
+
+    def method_text(run):
+        card["test_run"]["run"] = run
+        card_path.write_text(json.dumps(card, ensure_ascii=False), encoding="utf-8")
+        predict_module.model_card.cache_clear()
+        at = AppTest.from_file(APP, default_timeout=60)
+        at.query_params["view"] = "method"
+        at.run()
+        assert not at.exception
+        return " ".join(text for element in element_texts(at.tabs[1]) for text in element)
+
+    first = method_text(1)
+    assert "0.432" in first and "Author, 1999" in first
+    assert "docs/PROBLEM_FRAMING.md" in first and "مرة واحدة" in first
+
+    second = method_text(2)
+    assert "مرة واحدة" not in second
+    assert "التشغيل المسجّل رقم \u20662\u2069" in second
 
 
 def test_result_follows_the_submitted_text(tiny_models):
