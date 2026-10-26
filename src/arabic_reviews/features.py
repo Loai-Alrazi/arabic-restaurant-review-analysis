@@ -15,10 +15,12 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.svm import LinearSVC
 
 from . import text
+from .cues import PolarityCues
 
 NORMALIZERS = {"none": {}, "light": text.LIGHT, "full": text.FULL}
 LINEAR_MODELS = ("logreg", "linsvm", "cnb")
 REPRESENTATIONS = ("word11", "word12", "char25", "word11+char25")
+V2_REPRESENTATIONS = ("word12+char25",)  # version-2 candidate only (docs/V2_PLAN.md)
 
 
 class Normalizer(BaseEstimator, TransformerMixin):
@@ -82,7 +84,7 @@ def _vectorizer(kind: str, symbol_tokens: bool = False, tfidf: dict | None = Non
 
 
 def _features(representation: str, symbol_tokens: bool = False, tfidf: dict | None = None):
-    if representation not in REPRESENTATIONS:
+    if representation not in REPRESENTATIONS + V2_REPRESENTATIONS:
         raise ValueError(f"unknown representation: {representation}")
     parts = representation.split("+")
     if len(parts) == 1:
@@ -97,7 +99,7 @@ def _normalizer(spec: dict) -> Normalizer:
 
 def build_pipeline(spec: dict) -> Pipeline:
     """Unfitted pipeline for an experiment spec (keys: model, params, normalisation,
-    representation, class_weight; optional symbols, digits, negation, stopwords, textstats)."""
+    representation, class_weight; optional symbols, digits, negation, stopwords, textstats, cues)."""
     model, params = spec["model"], dict(spec.get("params", {}))
     if model == "dummy_most_frequent":
         return Pipeline([("clf", DummyClassifier(strategy="most_frequent"))])
@@ -115,11 +117,13 @@ def build_pipeline(spec: dict) -> Pipeline:
             clf = ComplementNB(**params)
         features = _features(spec.get("representation", "word11"), spec.get("symbols") == "separate",
                              spec.get("tfidf"))
-        if spec.get("textstats"):
-            # statistics come from the raw text, so they are computed beside the text branch
-            text_branch = Pipeline([("normalize", _normalizer(spec)), ("features", features)])
-            stats = Pipeline([("stats", TextStats()), ("scale", StandardScaler(with_mean=False))])
-            return Pipeline([("features", FeatureUnion([("text", text_branch), ("stats", stats)])),
-                             ("clf", clf)])
+        if spec.get("textstats") or spec.get("cues"):
+            # statistics and polarity cues come from the raw text, so they are computed beside the text branch
+            branches = [("text", Pipeline([("normalize", _normalizer(spec)), ("features", features)]))]
+            if spec.get("textstats"):
+                branches.append(("stats", Pipeline([("stats", TextStats()), ("scale", StandardScaler(with_mean=False))])))
+            if spec.get("cues"):
+                branches.append(("cues", Pipeline([("cues", PolarityCues()), ("scale", StandardScaler(with_mean=False))])))
+            return Pipeline([("features", FeatureUnion(branches)), ("clf", clf)])
         return Pipeline([("normalize", _normalizer(spec)), ("features", features), ("clf", clf)])
     raise ValueError(f"unknown model: {model}")

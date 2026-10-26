@@ -113,9 +113,30 @@ def cmd_final(rerun_reason: str | None = None, check_only: bool = False) -> None
     print(f"joint accuracy {r['joint']['accuracy']:.4f}; run {r['access']['run']} logged in reports/test_access_log.json")
 
 
+def cmd_v2_experiments() -> None:
+    from .v2 import RESULTS_MD, run_experiments
+
+    r = run_experiments()
+    print(f"selection: {r['selection']['chosen']}; adopted: {r['adopted']}; released sentiment configuration: "
+          f"{r['released']}; wrote {RESULTS_MD.relative_to(config.ROOT).as_posix()}")
+
+
+def cmd_v2_build(verify: bool = False) -> None:
+    from .v2 import CARD_FILE, PROTOCOL_FILE
+    from .v2_release import build
+
+    r = build(verify=verify)
+    if verify:
+        print("recomputed results equal reports/v2/results.json")
+    print(f"version-2 fingerprint {r['fingerprint']}; sentiment configuration {r['released']}; wrote "
+          f"{PROTOCOL_FILE.relative_to(config.ROOT).as_posix()}, {CARD_FILE.relative_to(config.ROOT).as_posix()} "
+          "and models/v2/*.joblib (local); the held-out test was not read")
+
+
 COMMANDS = {
     "ingest": cmd_ingest, "validate": cmd_validate, "split": cmd_split, "eda": cmd_eda,
     "experiments": cmd_experiments, "models": cmd_models, "protocol": cmd_protocol, "final": cmd_final,
+    "v2-experiments": cmd_v2_experiments, "v2-build": cmd_v2_build,
 }
 
 
@@ -125,11 +146,19 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument("--check", action="store_true",
                         help="final: verify the protocol and fit the models without reading the test partition")
     parser.add_argument("--rerun-reason", help="final: methodological reason for reading the test partition again")
+    parser.add_argument("--verify", action="store_true",
+                        help="v2-build: recompute every version-2 result first and require it to equal results.json")
     args = parser.parse_args(argv)
+    if args.verify and args.step != "v2-build":
+        parser.error("--verify applies to the v2-build step only")
     if args.step == "final" and args.check and args.rerun_reason is not None:
         parser.error("--check never reads the test partition, so it takes no --rerun-reason")
     if args.step == "final":
         cmd_final(args.rerun_reason, args.check)
+    elif args.step == "v2-build":
+        if args.check or args.rerun_reason is not None:
+            parser.error("--check and --rerun-reason apply to the final step only")
+        cmd_v2_build(args.verify)
     elif args.check or args.rerun_reason is not None:
         parser.error("--check and --rerun-reason apply to the final step only")
     else:
