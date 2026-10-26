@@ -1,0 +1,833 @@
+{
+ "name": "Arabic cafe review sentiment and main-aspect classifiers, version 2",
+ "version": "v2",
+ "fingerprint": "66e914a8f21d2a63ca15a7d7d25efcf1502d9bc32a1c28aaa5ae33dbed0e83d8",
+ "released_sentiment": "V1",
+ "adopted_new_sentiment_model": false,
+ "evaluation": "development data only (grouped CV); no independent test exists for version 2, and the old held-out test was not used",
+ "trained_on": {
+  "partition": "development",
+  "rows": 2215,
+  "sha256": "f0d6dc75ebd542d24cb04993bd4a492c13bd14433d91b05b58828acbd795c708",
+  "split_sha256": "6a8a686fc143992313443060c5106ed80dd78a09013e85665bbeea39930a70f0"
+ },
+ "source": {
+  "record": "https://zenodo.org/records/17781916",
+  "doi": "10.5281/zenodo.17781916",
+  "license": "CC-BY-4.0"
+ },
+ "versions": {
+  "scikit-learn": "1.8.0",
+  "numpy": "2.5.4",
+  "pandas": "2.3.3",
+  "joblib": "1.6.0",
+  "python": "3.12.12",
+  "scipy": "1.18.1"
+ },
+ "tasks": {
+  "sentiment": {
+   "file": "models/v2/sentiment.joblib",
+   "labels": [
+    "ايجابي",
+    "سلبي",
+    "محايد"
+   ],
+   "configuration": {
+    "representation": "word11+char25",
+    "normalisation": "none",
+    "class_weight": "balanced",
+    "params": {
+     "C": 0.3
+    },
+    "cues": false
+   },
+   "same_as_v1": true,
+   "dev_digest": "777923f3f6e1e156951d07a5b70b33c21dfbacc36d81501f36b0629f3f6723f5",
+   "certainty": {
+    "thresholds_by_class": {
+     "ايجابي": {
+      "high": 0.6,
+      "medium": 0.5
+     },
+     "سلبي": {
+      "high": 0.7,
+      "medium": 0.5
+     },
+     "محايد": {
+      "high": null,
+      "medium": null
+     }
+    },
+    "outer_levels": [
+     {
+      "label": "ايجابي",
+      "level": "high",
+      "rows": 1785,
+      "groups": 643,
+      "share": 0.268623,
+      "accuracy": 0.977031,
+      "interval": [
+       0.965537,
+       0.988064
+      ]
+     },
+     {
+      "label": "ايجابي",
+      "level": "medium",
+      "rows": 1026,
+      "groups": 507,
+      "share": 0.154402,
+      "accuracy": 0.918129,
+      "interval": [
+       0.891965,
+       0.941786
+      ]
+     },
+     {
+      "label": "ايجابي",
+      "level": "low",
+      "rows": 1122,
+      "groups": 516,
+      "share": 0.168849,
+      "accuracy": 0.754011,
+      "interval": [
+       0.712912,
+       0.794631
+      ]
+     },
+     {
+      "label": "سلبي",
+      "level": "high",
+      "rows": 143,
+      "groups": 60,
+      "share": 0.02152,
+      "accuracy": 0.902098,
+      "interval": [
+       0.798609,
+       0.984015
+      ]
+     },
+     {
+      "label": "سلبي",
+      "level": "medium",
+      "rows": 925,
+      "groups": 379,
+      "share": 0.139202,
+      "accuracy": 0.785946,
+      "interval": [
+       0.739227,
+       0.828452
+      ]
+     },
+     {
+      "label": "سلبي",
+      "level": "low",
+      "rows": 1003,
+      "groups": 480,
+      "share": 0.150941,
+      "accuracy": 0.510469,
+      "interval": [
+       0.464291,
+       0.561257
+      ]
+     },
+     {
+      "label": "محايد",
+      "level": "high",
+      "rows": 0,
+      "groups": 0,
+      "share": 0.0,
+      "accuracy": null,
+      "interval": null
+     },
+     {
+      "label": "محايد",
+      "level": "medium",
+      "rows": 0,
+      "groups": 0,
+      "share": 0.0,
+      "accuracy": null,
+      "interval": null
+     },
+     {
+      "label": "محايد",
+      "level": "low",
+      "rows": 641,
+      "groups": 283,
+      "share": 0.096464,
+      "accuracy": 0.369735,
+      "interval": [
+       0.306787,
+       0.428135
+      ]
+     }
+    ],
+    "v1_thresholds": {
+     "high": 0.6,
+     "medium": 0.5
+    },
+    "v1_rule_outer_levels": [
+     {
+      "label": "ايجابي",
+      "level": "high",
+      "rows": 1785,
+      "groups": 643,
+      "share": 0.268623,
+      "accuracy": 0.977031,
+      "interval": [
+       0.965537,
+       0.988064
+      ]
+     },
+     {
+      "label": "ايجابي",
+      "level": "medium",
+      "rows": 1026,
+      "groups": 507,
+      "share": 0.154402,
+      "accuracy": 0.918129,
+      "interval": [
+       0.891965,
+       0.941786
+      ]
+     },
+     {
+      "label": "ايجابي",
+      "level": "low",
+      "rows": 1122,
+      "groups": 516,
+      "share": 0.168849,
+      "accuracy": 0.754011,
+      "interval": [
+       0.712912,
+       0.794631
+      ]
+     },
+     {
+      "label": "سلبي",
+      "level": "high",
+      "rows": 455,
+      "groups": 184,
+      "share": 0.068473,
+      "accuracy": 0.863736,
+      "interval": [
+       0.809401,
+       0.91609
+      ]
+     },
+     {
+      "label": "سلبي",
+      "level": "medium",
+      "rows": 613,
+      "groups": 309,
+      "share": 0.09225,
+      "accuracy": 0.755302,
+      "interval": [
+       0.69896,
+       0.806756
+      ]
+     },
+     {
+      "label": "سلبي",
+      "level": "low",
+      "rows": 1003,
+      "groups": 480,
+      "share": 0.150941,
+      "accuracy": 0.510469,
+      "interval": [
+       0.464291,
+       0.561257
+      ]
+     },
+     {
+      "label": "محايد",
+      "level": "high",
+      "rows": 107,
+      "groups": 51,
+      "share": 0.016102,
+      "accuracy": 0.626168,
+      "interval": [
+       0.471698,
+       0.76317
+      ]
+     },
+     {
+      "label": "محايد",
+      "level": "medium",
+      "rows": 142,
+      "groups": 88,
+      "share": 0.021369,
+      "accuracy": 0.415493,
+      "interval": [
+       0.302144,
+       0.530501
+      ]
+     },
+     {
+      "label": "محايد",
+      "level": "low",
+      "rows": 392,
+      "groups": 222,
+      "share": 0.058992,
+      "accuracy": 0.283163,
+      "interval": [
+       0.218415,
+       0.348344
+      ]
+     }
+    ],
+    "measured_on": "outer folds (seeds 300-302) of the development partition, every review three times; frequencies observed on development data, not guarantees"
+   },
+   "cv": {
+    "selection": {
+     "macro": {
+      "mean": 0.652865,
+      "sd": 0.024402
+     },
+     "accuracy": 0.77382,
+     "balanced": 0.66625,
+     "per_class": {
+      "ايجابي": 0.864016,
+      "سلبي": 0.712308,
+      "محايد": 0.38227
+     }
+    },
+    "outer": {
+     "macro": {
+      "mean": 0.650216,
+      "sd": 0.020851
+     },
+     "accuracy": 0.773053,
+     "balanced": 0.662079,
+     "per_class": {
+      "ايجابي": 0.863056,
+      "سلبي": 0.709689,
+      "محايد": 0.377904
+     }
+    }
+   }
+  },
+  "aspect": {
+   "file": "models/v2/aspect.joblib",
+   "labels": [
+    "المأكولات",
+    "المشروبات",
+    "الخدمة",
+    "الجلسات",
+    "الاسعار"
+   ],
+   "configuration": {
+    "representation": "char25",
+    "normalisation": "none",
+    "class_weight": "balanced",
+    "params": {
+     "C": 1
+    },
+    "cues": false
+   },
+   "same_as_v1": true,
+   "dev_digest": "2bfd1cc39f938c99076e6cc7a3689656c57e7f33bbb95b424c7f1353e9ac814c",
+   "certainty": {
+    "thresholds_by_class": {
+     "المأكولات": {
+      "high": 0.5,
+      "medium": 0.35
+     },
+     "المشروبات": {
+      "high": 0.5,
+      "medium": 0.35
+     },
+     "الخدمة": {
+      "high": 0.5,
+      "medium": 0.35
+     },
+     "الجلسات": {
+      "high": 0.5,
+      "medium": 0.35
+     },
+     "الاسعار": {
+      "high": 0.5,
+      "medium": null
+     }
+    },
+    "outer_levels": [
+     {
+      "label": "المأكولات",
+      "level": "high",
+      "rows": 723,
+      "groups": 244,
+      "share": 0.108804,
+      "accuracy": 0.976487,
+      "interval": [
+       0.956125,
+       0.992407
+      ]
+     },
+     {
+      "label": "المأكولات",
+      "level": "medium",
+      "rows": 176,
+      "groups": 91,
+      "share": 0.026486,
+      "accuracy": 0.880682,
+      "interval": [
+       0.807219,
+       0.943006
+      ]
+     },
+     {
+      "label": "المأكولات",
+      "level": "low",
+      "rows": 88,
+      "groups": 50,
+      "share": 0.013243,
+      "accuracy": 0.579545,
+      "interval": [
+       0.432631,
+       0.738636
+      ]
+     },
+     {
+      "label": "المشروبات",
+      "level": "high",
+      "rows": 1530,
+      "groups": 501,
+      "share": 0.230248,
+      "accuracy": 0.986275,
+      "interval": [
+       0.975491,
+       0.994604
+      ]
+     },
+     {
+      "label": "المشروبات",
+      "level": "medium",
+      "rows": 311,
+      "groups": 140,
+      "share": 0.046802,
+      "accuracy": 0.881029,
+      "interval": [
+       0.820339,
+       0.933804
+      ]
+     },
+     {
+      "label": "المشروبات",
+      "level": "low",
+      "rows": 204,
+      "groups": 101,
+      "share": 0.0307,
+      "accuracy": 0.671569,
+      "interval": [
+       0.573941,
+       0.767444
+      ]
+     },
+     {
+      "label": "الخدمة",
+      "level": "high",
+      "rows": 1025,
+      "groups": 350,
+      "share": 0.154251,
+      "accuracy": 0.971707,
+      "interval": [
+       0.954964,
+       0.986603
+      ]
+     },
+     {
+      "label": "الخدمة",
+      "level": "medium",
+      "rows": 399,
+      "groups": 187,
+      "share": 0.060045,
+      "accuracy": 0.689223,
+      "interval": [
+       0.616396,
+       0.759879
+      ]
+     },
+     {
+      "label": "الخدمة",
+      "level": "low",
+      "rows": 271,
+      "groups": 136,
+      "share": 0.040783,
+      "accuracy": 0.479705,
+      "interval": [
+       0.386123,
+       0.570344
+      ]
+     },
+     {
+      "label": "الجلسات",
+      "level": "high",
+      "rows": 839,
+      "groups": 277,
+      "share": 0.12626,
+      "accuracy": 0.977354,
+      "interval": [
+       0.959998,
+       0.991805
+      ]
+     },
+     {
+      "label": "الجلسات",
+      "level": "medium",
+      "rows": 254,
+      "groups": 113,
+      "share": 0.038224,
+      "accuracy": 0.799213,
+      "interval": [
+       0.71712,
+       0.876547
+      ]
+     },
+     {
+      "label": "الجلسات",
+      "level": "low",
+      "rows": 108,
+      "groups": 59,
+      "share": 0.016253,
+      "accuracy": 0.527778,
+      "interval": [
+       0.383149,
+       0.676494
+      ]
+     },
+     {
+      "label": "الاسعار",
+      "level": "high",
+      "rows": 611,
+      "groups": 179,
+      "share": 0.091949,
+      "accuracy": 0.98527,
+      "interval": [
+       0.966539,
+       1.0
+      ]
+     },
+     {
+      "label": "الاسعار",
+      "level": "medium",
+      "rows": 0,
+      "groups": 0,
+      "share": 0.0,
+      "accuracy": null,
+      "interval": null
+     },
+     {
+      "label": "الاسعار",
+      "level": "low",
+      "rows": 106,
+      "groups": 48,
+      "share": 0.015952,
+      "accuracy": 0.886792,
+      "interval": [
+       0.789462,
+       0.967759
+      ]
+     }
+    ],
+    "v1_thresholds": {
+     "high": 0.5,
+     "medium": 0.35
+    },
+    "v1_rule_outer_levels": [
+     {
+      "label": "المأكولات",
+      "level": "high",
+      "rows": 723,
+      "groups": 244,
+      "share": 0.108804,
+      "accuracy": 0.976487,
+      "interval": [
+       0.956125,
+       0.992407
+      ]
+     },
+     {
+      "label": "المأكولات",
+      "level": "medium",
+      "rows": 176,
+      "groups": 91,
+      "share": 0.026486,
+      "accuracy": 0.880682,
+      "interval": [
+       0.807219,
+       0.943006
+      ]
+     },
+     {
+      "label": "المأكولات",
+      "level": "low",
+      "rows": 88,
+      "groups": 50,
+      "share": 0.013243,
+      "accuracy": 0.579545,
+      "interval": [
+       0.432631,
+       0.738636
+      ]
+     },
+     {
+      "label": "المشروبات",
+      "level": "high",
+      "rows": 1530,
+      "groups": 501,
+      "share": 0.230248,
+      "accuracy": 0.986275,
+      "interval": [
+       0.975491,
+       0.994604
+      ]
+     },
+     {
+      "label": "المشروبات",
+      "level": "medium",
+      "rows": 311,
+      "groups": 140,
+      "share": 0.046802,
+      "accuracy": 0.881029,
+      "interval": [
+       0.820339,
+       0.933804
+      ]
+     },
+     {
+      "label": "المشروبات",
+      "level": "low",
+      "rows": 204,
+      "groups": 101,
+      "share": 0.0307,
+      "accuracy": 0.671569,
+      "interval": [
+       0.573941,
+       0.767444
+      ]
+     },
+     {
+      "label": "الخدمة",
+      "level": "high",
+      "rows": 1025,
+      "groups": 350,
+      "share": 0.154251,
+      "accuracy": 0.971707,
+      "interval": [
+       0.954964,
+       0.986603
+      ]
+     },
+     {
+      "label": "الخدمة",
+      "level": "medium",
+      "rows": 399,
+      "groups": 187,
+      "share": 0.060045,
+      "accuracy": 0.689223,
+      "interval": [
+       0.616396,
+       0.759879
+      ]
+     },
+     {
+      "label": "الخدمة",
+      "level": "low",
+      "rows": 271,
+      "groups": 136,
+      "share": 0.040783,
+      "accuracy": 0.479705,
+      "interval": [
+       0.386123,
+       0.570344
+      ]
+     },
+     {
+      "label": "الجلسات",
+      "level": "high",
+      "rows": 839,
+      "groups": 277,
+      "share": 0.12626,
+      "accuracy": 0.977354,
+      "interval": [
+       0.959998,
+       0.991805
+      ]
+     },
+     {
+      "label": "الجلسات",
+      "level": "medium",
+      "rows": 254,
+      "groups": 113,
+      "share": 0.038224,
+      "accuracy": 0.799213,
+      "interval": [
+       0.71712,
+       0.876547
+      ]
+     },
+     {
+      "label": "الجلسات",
+      "level": "low",
+      "rows": 108,
+      "groups": 59,
+      "share": 0.016253,
+      "accuracy": 0.527778,
+      "interval": [
+       0.383149,
+       0.676494
+      ]
+     },
+     {
+      "label": "الاسعار",
+      "level": "high",
+      "rows": 611,
+      "groups": 179,
+      "share": 0.091949,
+      "accuracy": 0.98527,
+      "interval": [
+       0.966539,
+       1.0
+      ]
+     },
+     {
+      "label": "الاسعار",
+      "level": "medium",
+      "rows": 54,
+      "groups": 27,
+      "share": 0.008126,
+      "accuracy": 0.962963,
+      "interval": [
+       0.895826,
+       1.0
+      ]
+     },
+     {
+      "label": "الاسعار",
+      "level": "low",
+      "rows": 52,
+      "groups": 28,
+      "share": 0.007825,
+      "accuracy": 0.807692,
+      "interval": [
+       0.642857,
+       0.932232
+      ]
+     }
+    ],
+    "measured_on": "outer folds (seeds 300-302) of the development partition, every review three times; frequencies observed on development data, not guarantees"
+   },
+   "cv": {
+    "selection": {
+     "macro": {
+      "mean": 0.906942,
+      "sd": 0.015686
+     },
+     "accuracy": 0.904292,
+     "balanced": 0.903646,
+     "per_class": {
+      "المأكولات": 0.910259,
+      "المشروبات": 0.924664,
+      "الخدمة": 0.866626,
+      "الجلسات": 0.891386,
+      "الاسعار": 0.941774
+     }
+    },
+    "outer": {
+     "macro": {
+      "mean": 0.906748,
+      "sd": 0.018939
+     },
+     "accuracy": 0.90429,
+     "balanced": 0.903267,
+     "per_class": {
+      "المأكولات": 0.914257,
+      "المشروبات": 0.925098,
+      "الخدمة": 0.867053,
+      "الجلسات": 0.888724,
+      "الاسعار": 0.938608
+     }
+    }
+   }
+  }
+ },
+ "nested_vs_v1": {
+  "gain": {
+   "point": 0.017772,
+   "low": -0.000886,
+   "high": 0.035874,
+   "share_le_0": 0.0305
+  },
+  "neutral": {
+   "point": 0.039731,
+   "low": -0.003485,
+   "high": 0.079768,
+   "share_le_0": 0.036
+  },
+  "chosen_counts": {
+   "V1": 3,
+   "H1_phrases": 0,
+   "H2_cues": 12,
+   "H3_both": 0
+  }
+ },
+ "experiment": {
+  "chosen_on_selection_folds": "H2_cues",
+  "adopted": false,
+  "candidates": {
+   "V1": {
+    "selection_macro_f1": 0.652865,
+    "selection_neutral_f1": 0.38227,
+    "outer_macro_f1": 0.650216,
+    "outer_neutral_f1": 0.377904
+   },
+   "H1_phrases": {
+    "selection_macro_f1": 0.655971,
+    "selection_neutral_f1": 0.386932,
+    "outer_macro_f1": 0.649987,
+    "outer_neutral_f1": 0.370991
+   },
+   "H2_cues": {
+    "selection_macro_f1": 0.678051,
+    "selection_neutral_f1": 0.448961,
+    "outer_macro_f1": 0.679349,
+    "outer_neutral_f1": 0.446706
+   },
+   "H3_both": {
+    "selection_macro_f1": 0.678488,
+    "selection_neutral_f1": 0.447233,
+    "outer_macro_f1": 0.679388,
+    "outer_neutral_f1": 0.448204
+   }
+  },
+  "stability_vs_v1": {
+   "gain": {
+    "point": 0.028678,
+    "low": 0.00507,
+    "high": 0.050926,
+    "share_le_0": 0.0115
+   },
+   "neutral": {
+    "point": 0.067241,
+    "low": 0.012412,
+    "high": 0.118576,
+    "share_le_0": 0.0105
+   }
+  },
+  "rule": "adopted only if the nested CV estimate of the whole selection procedure gains >= 0.01 Macro-F1 with a 95% interval above 0, a positive neutral F1 change and no positive or negative F1 drop larger than 0.02 (docs/V2_PLAN.md section 5)"
+ },
+ "joint_accuracy": {
+  "V1": {
+   "selection": 0.705952,
+   "outer": 0.704731
+  }
+ },
+ "input": {
+  "development_length_chars": {
+   "min": 4,
+   "median": 31.0,
+   "p99": 203.0,
+   "max": 357
+  }
+ }
+}
