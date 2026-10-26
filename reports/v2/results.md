@@ -1,6 +1,6 @@
 # Version 2 - sentiment on development data only
 
-Plan and decision rules: `docs/V2_PLAN.md`. Every number below comes from the development partition (2215 reviews, `dev.csv` SHA-256 `f0d6dc75ebd5...`); the old held-out test was not opened: the run's guard refuses to open it, saved test predictions and the test reports, and recorded these openings under data/, reports/, models/: `data/processed/dev.csv`, `data/splits/split_v1.csv`, `reports/experiments.csv`, `reports/protocol.json`, `reports/v2/blind_reading.csv`, `reports/v2/experiments.csv` (an accidental-access check inside this process, not a proof that nothing else could have influenced the design). Polarity-cue file SHA-256 `ac5460bb887a...` (frozen before any candidate was scored). Commit `93a4361`.
+Plan and decision rules: `docs/V2_PLAN.md`. Every number below comes from the development partition (2215 reviews, `dev.csv` SHA-256 `f0d6dc75ebd5...`); the old held-out test was not opened: the run's guard refuses to open it, saved test predictions and the test reports, and recorded the files it read under data/, reports/, models/: `data/processed/dev.csv`, `data/splits/split_v1.csv`, `reports/experiments.csv`, `reports/protocol.json`, `reports/v2/blind_reading.csv`, `reports/v2/experiments.csv` (an accidental-access check inside this process, not a proof that nothing else could have influenced the design). Polarity-cue file SHA-256 `ac5460bb887a...` (frozen before any candidate was scored). Commit `e3092b1`.
 
 **What these numbers can and cannot show.** The design of version 2 (its target, candidates and cue list) came after reading development reviews, and the same reviews are used here. The nested CV repeats only the algorithmic choice among the three fixed candidates inside each outer fold; the candidates and the cue list were designed after reading development reviews, outer validation rows included, so it does not remove that optimism. The outer folds use new seeds, but no new reviews: every estimate is development-only and optimistic to an unknown degree. There is no independent test for version 2, and no result is shown on the old test.
 
@@ -103,17 +103,17 @@ Version-1 thresholds (one pair for every class): high 0.60, medium 0.50.
 
 Dropped by the outer-fold check: released none; registered none.
 
-| predicted | level | released: selection rows (groups) | accuracy | released: outer rows (groups) | accuracy [95% interval] | v1 rule: outer rows | accuracy | registered: outer rows | accuracy [95% interval] |
+| predicted | level | released: selection rows (groups) | accuracy | released: outer rows (groups) | accuracy [95% interval] | v1 rule: outer rows | accuracy [95% interval] | registered: outer rows | accuracy [95% interval] |
 |---|---|---|---|---|---|---|---|---|---|
-| ايجابي | high | 1742 (631) | 0.978 | 1785 (643) | 0.977 [0.966, 0.988] | 1785 | 0.977 | 3329 | 0.936 [0.922, 0.950] |
-| ايجابي | medium | 1066 (519) | 0.922 | 1026 (507) | 0.918 [0.892, 0.942] | 1026 | 0.918 | 600 | 0.690 [0.635, 0.744] |
-| ايجابي | low | 1130 (529) | 0.754 | 1122 (516) | 0.754 [0.713, 0.795] | 1122 | 0.754 | 4 | 0.250 [0.000, 1.000] |
-| سلبي | high | 136 (57) | 0.926 | 143 (60) | 0.902 [0.799, 0.984] | 455 | 0.864 | 143 | 0.902 [0.799, 0.984] |
-| سلبي | medium | 923 (376) | 0.794 | 925 (379) | 0.786 [0.739, 0.828] | 613 | 0.755 | 925 | 0.786 [0.739, 0.828] |
-| سلبي | low | 966 (460) | 0.516 | 1003 (480) | 0.510 [0.464, 0.561] | 1003 | 0.510 | 1003 | 0.510 [0.464, 0.561] |
-| محايد | high | 0 (0) | – | 0 (0) | –  | 107 | 0.626 | 0 | –  |
-| محايد | medium | 0 (0) | – | 0 (0) | –  | 142 | 0.415 | 0 | –  |
-| محايد | low | 682 (296) | 0.362 | 641 (283) | 0.370 [0.307, 0.428] | 392 | 0.283 | 641 | 0.370 [0.307, 0.428] |
+| ايجابي | high | 1742 (631) | 0.978 | 1785 (643) | 0.977 [0.966, 0.988] | 1785 | 0.977 [0.966, 0.988] | 3329 | 0.936 [0.922, 0.950] |
+| ايجابي | medium | 1066 (519) | 0.922 | 1026 (507) | 0.918 [0.892, 0.942] | 1026 | 0.918 [0.892, 0.942] | 600 | 0.690 [0.635, 0.744] |
+| ايجابي | low | 1130 (529) | 0.754 | 1122 (516) | 0.754 [0.713, 0.795] | 1122 | 0.754 [0.713, 0.795] | 4 | 0.250 [0.000, 1.000] |
+| سلبي | high | 136 (57) | 0.926 | 143 (60) | 0.902 [0.799, 0.984] | 455 | 0.864 [0.809, 0.916] | 143 | 0.902 [0.799, 0.984] |
+| سلبي | medium | 923 (376) | 0.794 | 925 (379) | 0.786 [0.739, 0.828] | 613 | 0.755 [0.699, 0.807] | 925 | 0.786 [0.739, 0.828] |
+| سلبي | low | 966 (460) | 0.516 | 1003 (480) | 0.510 [0.464, 0.561] | 1003 | 0.510 [0.464, 0.561] | 1003 | 0.510 [0.464, 0.561] |
+| محايد | high | 0 (0) | – | 0 (0) | –  | 107 | 0.626 [0.472, 0.763] | 0 | –  |
+| محايد | medium | 0 (0) | – | 0 (0) | –  | 142 | 0.415 [0.302, 0.531] | 0 | –  |
+| محايد | low | 682 (296) | 0.362 | 641 (283) | 0.370 [0.307, 0.428] | 392 | 0.283 [0.218, 0.348] | 641 | 0.370 [0.307, 0.428] |
 
 Outer intervals: group bootstrap, 2000 resamples (seed 0), the groups drawn once per resample for all three repeats; a cell without rows has no interval.
 
@@ -131,23 +131,23 @@ Version-1 thresholds (one pair for every class): high 0.50, medium 0.35.
 
 Dropped by the outer-fold check: released none; registered none.
 
-| predicted | level | released: selection rows (groups) | accuracy | released: outer rows (groups) | accuracy [95% interval] | v1 rule: outer rows | accuracy | registered: outer rows | accuracy [95% interval] |
+| predicted | level | released: selection rows (groups) | accuracy | released: outer rows (groups) | accuracy [95% interval] | v1 rule: outer rows | accuracy [95% interval] | registered: outer rows | accuracy [95% interval] |
 |---|---|---|---|---|---|---|---|---|---|
-| المأكولات | high | 727 (243) | 0.981 | 723 (244) | 0.976 [0.956, 0.992] | 723 | 0.976 | 899 | 0.958 [0.935, 0.977] |
-| المأكولات | medium | 173 (76) | 0.884 | 176 (91) | 0.881 [0.807, 0.943] | 176 | 0.881 | 0 | –  |
-| المأكولات | low | 91 (52) | 0.484 | 88 (50) | 0.580 [0.433, 0.739] | 88 | 0.580 | 88 | 0.580 [0.433, 0.739] |
-| المشروبات | high | 1523 (498) | 0.986 | 1530 (501) | 0.986 [0.975, 0.995] | 1530 | 0.986 | 1841 | 0.968 [0.954, 0.981] |
-| المشروبات | medium | 313 (140) | 0.895 | 311 (140) | 0.881 [0.820, 0.934] | 311 | 0.881 | 124 | 0.758 [0.649, 0.862] |
-| المشروبات | low | 202 (104) | 0.663 | 204 (101) | 0.672 [0.574, 0.767] | 204 | 0.672 | 80 | 0.537 [0.395, 0.674] |
-| الخدمة | high | 1019 (350) | 0.972 | 1025 (350) | 0.972 [0.955, 0.987] | 1025 | 0.972 | 1150 | 0.955 [0.935, 0.973] |
-| الخدمة | medium | 393 (182) | 0.715 | 399 (187) | 0.689 [0.616, 0.760] | 399 | 0.689 | 114 | 0.719 [0.602, 0.835] |
-| الخدمة | low | 287 (142) | 0.456 | 271 (136) | 0.480 [0.386, 0.570] | 271 | 0.480 | 431 | 0.513 [0.433, 0.587] |
-| الجلسات | high | 840 (278) | 0.979 | 839 (277) | 0.977 [0.960, 0.992] | 839 | 0.977 | 930 | 0.966 [0.945, 0.984] |
-| الجلسات | medium | 258 (116) | 0.791 | 254 (113) | 0.799 [0.717, 0.877] | 254 | 0.799 | 163 | 0.767 [0.654, 0.864] |
-| الجلسات | low | 102 (54) | 0.559 | 108 (59) | 0.528 [0.383, 0.676] | 108 | 0.528 | 108 | 0.528 [0.383, 0.676] |
-| الاسعار | high | 611 (180) | 0.985 | 611 (179) | 0.985 [0.967, 1.000] | 611 | 0.985 | 693 | 0.978 [0.958, 0.996] |
-| الاسعار | medium | 0 (0) | – | 0 (0) | –  | 54 | 0.963 | 0 | –  |
-| الاسعار | low | 106 (40) | 0.906 | 106 (48) | 0.887 [0.789, 0.968] | 52 | 0.808 | 24 | 0.750 [0.500, 0.923] |
+| المأكولات | high | 727 (243) | 0.981 | 723 (244) | 0.976 [0.956, 0.992] | 723 | 0.976 [0.956, 0.992] | 899 | 0.958 [0.935, 0.977] |
+| المأكولات | medium | 173 (76) | 0.884 | 176 (91) | 0.881 [0.807, 0.943] | 176 | 0.881 [0.807, 0.943] | 0 | –  |
+| المأكولات | low | 91 (52) | 0.484 | 88 (50) | 0.580 [0.433, 0.739] | 88 | 0.580 [0.433, 0.739] | 88 | 0.580 [0.433, 0.739] |
+| المشروبات | high | 1523 (498) | 0.986 | 1530 (501) | 0.986 [0.975, 0.995] | 1530 | 0.986 [0.975, 0.995] | 1841 | 0.968 [0.954, 0.981] |
+| المشروبات | medium | 313 (140) | 0.895 | 311 (140) | 0.881 [0.820, 0.934] | 311 | 0.881 [0.820, 0.934] | 124 | 0.758 [0.649, 0.862] |
+| المشروبات | low | 202 (104) | 0.663 | 204 (101) | 0.672 [0.574, 0.767] | 204 | 0.672 [0.574, 0.767] | 80 | 0.537 [0.395, 0.674] |
+| الخدمة | high | 1019 (350) | 0.972 | 1025 (350) | 0.972 [0.955, 0.987] | 1025 | 0.972 [0.955, 0.987] | 1150 | 0.955 [0.935, 0.973] |
+| الخدمة | medium | 393 (182) | 0.715 | 399 (187) | 0.689 [0.616, 0.760] | 399 | 0.689 [0.616, 0.760] | 114 | 0.719 [0.602, 0.835] |
+| الخدمة | low | 287 (142) | 0.456 | 271 (136) | 0.480 [0.386, 0.570] | 271 | 0.480 [0.386, 0.570] | 431 | 0.513 [0.433, 0.587] |
+| الجلسات | high | 840 (278) | 0.979 | 839 (277) | 0.977 [0.960, 0.992] | 839 | 0.977 [0.960, 0.992] | 930 | 0.966 [0.945, 0.984] |
+| الجلسات | medium | 258 (116) | 0.791 | 254 (113) | 0.799 [0.717, 0.877] | 254 | 0.799 [0.717, 0.877] | 163 | 0.767 [0.654, 0.864] |
+| الجلسات | low | 102 (54) | 0.559 | 108 (59) | 0.528 [0.383, 0.676] | 108 | 0.528 [0.383, 0.676] | 108 | 0.528 [0.383, 0.676] |
+| الاسعار | high | 611 (180) | 0.985 | 611 (179) | 0.985 [0.967, 1.000] | 611 | 0.985 [0.967, 1.000] | 693 | 0.978 [0.958, 0.996] |
+| الاسعار | medium | 0 (0) | – | 0 (0) | –  | 54 | 0.963 [0.896, 1.000] | 0 | –  |
+| الاسعار | low | 106 (40) | 0.906 | 106 (48) | 0.887 [0.789, 0.968] | 52 | 0.808 [0.643, 0.932] | 24 | 0.750 [0.500, 0.923] |
 
 Outer intervals: group bootstrap, 2000 resamples (seed 0), the groups drawn once per resample for all three repeats; a cell without rows has no interval.
 

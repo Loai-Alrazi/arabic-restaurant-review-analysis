@@ -1,7 +1,7 @@
 {
  "name": "Arabic cafe review sentiment and main-aspect classifiers, version 2",
  "version": "v2",
- "fingerprint": "f5d6c94afda8c38401c8053768e21b6f670e84d5d599be0478939146142dce73",
+ "fingerprint": "f13c2eedaba79948278a1004d1a1c71014d43c17e84e739e4c1cb0b4c8ab33e0",
  "released_sentiment": "V1",
  "adopted_new_sentiment_model": false,
  "evaluation": "development data only (grouped CV); no independent test exists for version 2, and the old held-out test was not used",
@@ -21,7 +21,8 @@
   "numpy": "2.5.4",
   "pandas": "2.3.3",
   "joblib": "1.6.0",
-  "python": "3.12.12"
+  "python": "3.12.12",
+  "scipy": "1.18.1"
  },
  "tasks": {
   "sentiment": {
@@ -172,7 +173,11 @@
       "rows": 1785,
       "groups": 643,
       "share": 0.268623,
-      "accuracy": 0.977031
+      "accuracy": 0.977031,
+      "interval": [
+       0.965537,
+       0.988064
+      ]
      },
      {
       "label": "ايجابي",
@@ -180,7 +185,11 @@
       "rows": 1026,
       "groups": 507,
       "share": 0.154402,
-      "accuracy": 0.918129
+      "accuracy": 0.918129,
+      "interval": [
+       0.891965,
+       0.941786
+      ]
      },
      {
       "label": "ايجابي",
@@ -188,7 +197,11 @@
       "rows": 1122,
       "groups": 516,
       "share": 0.168849,
-      "accuracy": 0.754011
+      "accuracy": 0.754011,
+      "interval": [
+       0.712912,
+       0.794631
+      ]
      },
      {
       "label": "سلبي",
@@ -196,7 +209,11 @@
       "rows": 455,
       "groups": 184,
       "share": 0.068473,
-      "accuracy": 0.863736
+      "accuracy": 0.863736,
+      "interval": [
+       0.809401,
+       0.91609
+      ]
      },
      {
       "label": "سلبي",
@@ -204,7 +221,11 @@
       "rows": 613,
       "groups": 309,
       "share": 0.09225,
-      "accuracy": 0.755302
+      "accuracy": 0.755302,
+      "interval": [
+       0.69896,
+       0.806756
+      ]
      },
      {
       "label": "سلبي",
@@ -212,7 +233,11 @@
       "rows": 1003,
       "groups": 480,
       "share": 0.150941,
-      "accuracy": 0.510469
+      "accuracy": 0.510469,
+      "interval": [
+       0.464291,
+       0.561257
+      ]
      },
      {
       "label": "محايد",
@@ -220,7 +245,11 @@
       "rows": 107,
       "groups": 51,
       "share": 0.016102,
-      "accuracy": 0.626168
+      "accuracy": 0.626168,
+      "interval": [
+       0.471698,
+       0.76317
+      ]
      },
      {
       "label": "محايد",
@@ -228,7 +257,11 @@
       "rows": 142,
       "groups": 88,
       "share": 0.021369,
-      "accuracy": 0.415493
+      "accuracy": 0.415493,
+      "interval": [
+       0.302144,
+       0.530501
+      ]
      },
      {
       "label": "محايد",
@@ -236,7 +269,11 @@
       "rows": 392,
       "groups": 222,
       "share": 0.058992,
-      "accuracy": 0.283163
+      "accuracy": 0.283163,
+      "interval": [
+       0.218415,
+       0.348344
+      ]
      }
     ],
     "measured_on": "outer folds (seeds 300-302) of the development partition, every review three times; frequencies observed on development data, not guarantees"
@@ -503,7 +540,11 @@
       "rows": 723,
       "groups": 244,
       "share": 0.108804,
-      "accuracy": 0.976487
+      "accuracy": 0.976487,
+      "interval": [
+       0.956125,
+       0.992407
+      ]
      },
      {
       "label": "المأكولات",
@@ -511,7 +552,11 @@
       "rows": 176,
       "groups": 91,
       "share": 0.026486,
-      "accuracy": 0.880682
+      "accuracy": 0.880682,
+      "interval": [
+       0.807219,
+       0.943006
+      ]
      },
      {
       "label": "المأكولات",
@@ -519,7 +564,11 @@
       "rows": 88,
       "groups": 50,
       "share": 0.013243,
-      "accuracy": 0.579545
+      "accuracy": 0.579545,
+      "interval": [
+       0.432631,
+       0.738636
+      ]
      },
      {
       "label": "المشروبات",
@@ -527,7 +576,11 @@
       "rows": 1530,
       "groups": 501,
       "share": 0.230248,
-      "accuracy": 0.986275
+      "accuracy": 0.986275,
+      "interval": [
+       0.975491,
+       0.994604
+      ]
      },
      {
       "label": "المشروبات",
@@ -535,7 +588,11 @@
       "rows": 311,
       "groups": 140,
       "share": 0.046802,
-      "accuracy": 0.881029
+      "accuracy": 0.881029,
+      "interval": [
+       0.820339,
+       0.933804
+      ]
      },
      {
       "label": "المشروبات",
@@ -543,7 +600,11 @@
       "rows": 204,
       "groups": 101,
       "share": 0.0307,
-      "accuracy": 0.671569
+      "accuracy": 0.671569,
+      "interval": [
+       0.573941,
+       0.767444
+      ]
      },
      {
       "label": "الخدمة",
@@ -551,7 +612,11 @@
       "rows": 1025,
       "groups": 350,
       "share": 0.154251,
-      "accuracy": 0.971707
+      "accuracy": 0.971707,
+      "interval": [
+       0.954964,
+       0.986603
+      ]
      },
      {
       "label": "الخدمة",
@@ -559,7 +624,11 @@
       "rows": 399,
       "groups": 187,
       "share": 0.060045,
-      "accuracy": 0.689223
+      "accuracy": 0.689223,
+      "interval": [
+       0.616396,
+       0.759879
+      ]
      },
      {
       "label": "الخدمة",
@@ -567,7 +636,11 @@
       "rows": 271,
       "groups": 136,
       "share": 0.040783,
-      "accuracy": 0.479705
+      "accuracy": 0.479705,
+      "interval": [
+       0.386123,
+       0.570344
+      ]
      },
      {
       "label": "الجلسات",
@@ -575,7 +648,11 @@
       "rows": 839,
       "groups": 277,
       "share": 0.12626,
-      "accuracy": 0.977354
+      "accuracy": 0.977354,
+      "interval": [
+       0.959998,
+       0.991805
+      ]
      },
      {
       "label": "الجلسات",
@@ -583,7 +660,11 @@
       "rows": 254,
       "groups": 113,
       "share": 0.038224,
-      "accuracy": 0.799213
+      "accuracy": 0.799213,
+      "interval": [
+       0.71712,
+       0.876547
+      ]
      },
      {
       "label": "الجلسات",
@@ -591,7 +672,11 @@
       "rows": 108,
       "groups": 59,
       "share": 0.016253,
-      "accuracy": 0.527778
+      "accuracy": 0.527778,
+      "interval": [
+       0.383149,
+       0.676494
+      ]
      },
      {
       "label": "الاسعار",
@@ -599,7 +684,11 @@
       "rows": 611,
       "groups": 179,
       "share": 0.091949,
-      "accuracy": 0.98527
+      "accuracy": 0.98527,
+      "interval": [
+       0.966539,
+       1.0
+      ]
      },
      {
       "label": "الاسعار",
@@ -607,7 +696,11 @@
       "rows": 54,
       "groups": 27,
       "share": 0.008126,
-      "accuracy": 0.962963
+      "accuracy": 0.962963,
+      "interval": [
+       0.895826,
+       1.0
+      ]
      },
      {
       "label": "الاسعار",
@@ -615,7 +708,11 @@
       "rows": 52,
       "groups": 28,
       "share": 0.007825,
-      "accuracy": 0.807692
+      "accuracy": 0.807692,
+      "interval": [
+       0.642857,
+       0.932232
+      ]
      }
     ],
     "measured_on": "outer folds (seeds 300-302) of the development partition, every review three times; frequencies observed on development data, not guarantees"

@@ -33,7 +33,8 @@ def test_guard_refuses_test_files_and_records_data_files(tmp_path, monkeypatch):
         with pytest.raises(PermissionError):
             pd.read_csv(tmp_path / "data/processed/test.csv")
         assert (tmp_path / "data/processed/dev.csv").read_text(encoding="utf-8") == "x"
-    assert opened == {"data/processed/dev.csv"}
+        (tmp_path / "reports/out.json").write_text("{}", encoding="utf-8")
+    assert opened == {"read": {"data/processed/dev.csv"}, "written": {"reports/out.json"}}
     assert (tmp_path / "data/processed/test.csv").read_text(encoding="utf-8") == "x"  # only inside the block
 
 
@@ -137,6 +138,15 @@ def test_outer_level_intervals_cover_the_point_accuracy():
             assert row["interval"] is None
 
 
+def test_a_verification_run_never_appends(tmp_path, monkeypatch):
+    monkeypatch.setattr(v2, "LOG_FILE", tmp_path / "experiments.csv")
+    m = _metrics([0.6] * 15)
+    m.update(accuracy=[0.7] * 15, balanced=[0.6] * 15)
+    with pytest.raises(RuntimeError, match="never appends"):
+        v2.log_row("sentiment", "x", "selection", None, m, 1.0, L, append=False)
+    assert not v2.LOG_FILE.exists()
+
+
 def test_logged_rows_are_checked_field_by_field(tmp_path, monkeypatch):
     monkeypatch.setattr(v2, "LOG_FILE", tmp_path / "experiments.csv")
     monkeypatch.setattr(v2, "V2_DIR", tmp_path)
@@ -150,6 +160,8 @@ def test_logged_rows_are_checked_field_by_field(tmp_path, monkeypatch):
         v2.log_row("sentiment", "x", "selection", spec, changed, 1.0, L)
     with pytest.raises(RuntimeError, match="notes"):
         v2.log_row("sentiment", "x", "selection", spec, m, 1.0, L, notes="other")
+    with pytest.raises(RuntimeError, match="spec"):  # e.g. a normalisation change the summary columns do not show
+        v2.log_row("sentiment", "x", "selection", dict(spec, normalisation="light"), m, 1.0, L)
 
 
 def test_paired_bootstrap_resamples_groups_once_for_all_repeats():
@@ -159,6 +171,11 @@ def test_paired_bootstrap_resamples_groups_once_for_all_repeats():
     same = [y.copy() for _ in range(3)]
     b = v2.paired_bootstrap(y, groups, same, same, L, resamples=200)
     assert all(v["low"] == v["high"] == 0 for v in b.values())
+    # Two repeats whose model roles are swapped: with the same groups in both repeats the two repeat-level
+    # differences cancel exactly in every resample; separate draws per repeat would not cancel.
+    noisy = np.where(rng.random(300) < 0.4, POS, y)
+    b = v2.paired_bootstrap(y, groups, [y, noisy], [noisy, y], L, resamples=200)
+    assert all(abs(v["low"]) < 1e-12 and abs(v["high"]) < 1e-12 for v in b.values())
     worse = [np.where(rng.random(300) < 0.3, POS, y) for _ in range(3)]
     b = v2.paired_bootstrap(y, groups, same, worse, L, resamples=200)
     assert b["macro"]["low"] > 0 and b["macro"]["point"] > 0
@@ -226,3 +243,86 @@ def test_released_rule_never_widens_a_version_1_level():
     for label in L:
         for level in ("high", "medium"):
             assert kept[label][level] is None or kept[label][level] >= {"high": 0.60, "medium": 0.50}[level]
+
+
+def test_verification_ignores_only_the_run_commit_and_the_python_patch_release():
+    from arabic_reviews import v2_release
+
+    base = dict(git_sha="abc", versions={"python": "3.12.12", "numpy": "2.5.4"}, adopted=False)
+    other = dict(base, git_sha="def", versions={"python": "3.12.13", "numpy": "2.5.4"})
+    assert v2_release.comparable(json.dumps(base)) == v2_release.comparable(json.dumps(other))
+    for changed in (dict(base, adopted=True), dict(base, versions={"python": "3.13.0", "numpy": "2.5.4"}),
+                    dict(base, versions={"python": "3.12.12", "numpy": "2.6.0"})):
+        assert v2_release.comparable(json.dumps(base)) != v2_release.comparable(json.dumps(changed))
+
+
+def test_release_module_is_not_a_source_of_the_results():
+    assert "v2_release" not in v2.SOURCES and set(v2.source_hashes()) == set(v2.SOURCES)
+
+
+def _released_specs(r):
+    frozen = v2.frozen_specs()
+    return {"sentiment": v2.candidates(frozen["sentiment"])[r["released"]], "aspect": frozen["aspect"]}
+
+
+def test_committed_protocol_has_the_released_fingerprint_and_rebuilds_from_the_committed_results():
+    import hashlib
+
+    from arabic_reviews import v2_fingerprint, v2_release
+
+    committed = json.loads(v2.PROTOCOL_FILE.read_text(encoding="utf-8"))
+    assert committed["fingerprint"] == v2_fingerprint.FROZEN_FINGERPRINT
+    assert committed["release_sha256"] == v2_release.release_sha256()
+    text = v2.RESULTS_JSON.read_text(encoding="utf-8")
+    r = json.loads(text)
+    sha = hashlib.sha256(text.replace("\r\n", "\n").encode("utf-8")).hexdigest()
+    assert v2_release.protocol_v2(r, _released_specs(r), sha)["fingerprint"] == v2_fingerprint.FROZEN_FINGERPRINT
+    card = json.loads(v2.CARD_FILE.read_text(encoding="utf-8"))
+    assert card["fingerprint"] == v2_fingerprint.FROZEN_FINGERPRINT and card["released_sentiment"] == r["released"]
+
+
+def test_the_release_code_is_part_of_the_fingerprint(monkeypatch):
+    from arabic_reviews import v2_release
+
+    r = json.loads(v2.RESULTS_JSON.read_text(encoding="utf-8"))
+    base = v2_release.protocol_v2(r, _released_specs(r), "a")
+    monkeypatch.setattr(v2_release, "release_sha256", lambda: "0" * 64)
+    assert v2_release.protocol_v2(r, _released_specs(r), "a")["fingerprint"] != base["fingerprint"]
+
+
+def _build_outputs_to(tmp_path, monkeypatch):
+    from arabic_reviews import v2_release
+
+    for name in ("MODELS_DIR", "PROTOCOL_FILE", "CARD_FILE"):
+        monkeypatch.setattr(v2_release, name, tmp_path / getattr(v2_release, name).name)
+    return v2_release
+
+
+def test_a_build_refuses_another_protocol_before_verifying_fitting_or_writing(tmp_path, monkeypatch):
+    v2_release = _build_outputs_to(tmp_path, monkeypatch)
+    verified = []
+
+    def refuse():
+        raise RuntimeError("not the released fingerprint")
+
+    monkeypatch.setattr(v2_release, "released_protocol", refuse)
+    monkeypatch.setattr(v2_release, "verify_results", lambda: verified.append(True))
+    for verify in (False, True):
+        with pytest.raises(RuntimeError, match="released fingerprint"):
+            v2_release.build(verify=verify)
+    assert verified == [] and list(tmp_path.iterdir()) == []
+
+
+def test_models_are_saved_only_after_their_digests_pass(tmp_path, monkeypatch):
+    from arabic_reviews import final
+
+    v2_release = _build_outputs_to(tmp_path, monkeypatch)
+    r = {"released": "V1"}
+    monkeypatch.setattr(v2_release, "released_protocol", lambda: (r, _released_specs(r), {}, toy_dev()))
+    digests = tmp_path / "digests.json"
+    digests.write_text(json.dumps({"versions": final.runtime_versions(),
+                                   "digests": {"sentiment": "other", "aspect": "other"}}), encoding="utf-8")
+    monkeypatch.setattr(final, "DIGESTS_FILE", digests)
+    with pytest.raises(RuntimeError, match="digest differs"):
+        v2_release.build()
+    assert sorted(p.name for p in tmp_path.iterdir()) == ["digests.json"]

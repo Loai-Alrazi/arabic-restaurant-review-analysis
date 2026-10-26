@@ -1,4 +1,6 @@
 {
+ "results_sha256": "61b5d0e9c7bc1433ca3b273e4b65a6953ee530489a4ac1af093fc233b98b2255",
+ "release_sha256": "6cfbcbf328923a4a1420f39fefb1926260bb7a0c53f0bae5e3013bc0a1a8420f",
  "version": "v2",
  "plan": "docs/V2_PLAN.md",
  "released": "V1",
@@ -206,7 +208,8 @@
   "numpy": "2.5.4",
   "pandas": "2.3.3",
   "joblib": "1.6.0",
-  "python": "3.12.12"
+  "python": "3.12.12",
+  "scipy": "1.18.1"
  },
  "sources": {
   "config": "e206cb63a808929820326c245954e28b7d108a3267fb7413fdd626c8f59dfc47",
@@ -218,9 +221,9 @@
   "protocol": "de377daf4005ecbdaa9b0a270de6b535e083c29846c9fa379fb7119b67c36752",
   "split": "9adcb0d0654a0a7f742965958546199bff492cda8cfb270a2b101c79b8905efa",
   "text": "25e502b0feac44d3b6a30fbae86abf67fc86a4db2e73d52134fe23b624caaeca",
-  "v2": "7ffb73a2fa9338766b350ad8f3930efb28badc6e638ddb8b5654a1dadf1f9ad6"
+  "v2": "181d8fe85f31a0c7db90b4806113a6a52b5d748f2f7eff788717ce3b47224075"
  },
- "results_commit": "93a4361",
+ "results_commit": "e3092b1",
  "rules": {
   "min_gain": 0.01,
   "min_neutral_gain": 0.02,
@@ -261,23 +264,29 @@
   ],
   "drop_slack": 0.05
  },
- "fingerprint": "f5d6c94afda8c38401c8053768e21b6f670e84d5d599be0478939146142dce73",
+ "fingerprint": "f13c2eedaba79948278a1004d1a1c71014d43c17e84e739e4c1cb0b4c8ab33e0",
  "build": {
-  "inputs": [
+  "read": [
    "data/processed/dev.csv",
    "data/splits/split_v1.csv",
-   "models/v2/aspect.joblib",
-   "models/v2/sentiment.joblib",
    "reports/experiments.csv",
    "reports/model_digests.json",
    "reports/v2/results.json"
+  ],
+  "written": [
+   "models/model_card_v2.json",
+   "models/v2/aspect.joblib",
+   "models/v2/sentiment.joblib",
+   "reports/v2/protocol_v2.json"
   ],
   "versions": {
    "scikit-learn": "1.8.0",
    "numpy": "2.5.4",
    "pandas": "2.3.3",
    "joblib": "1.6.0",
-   "python": "3.12.12"
-  }
+   "python": "3.12.12",
+   "scipy": "1.18.1"
+  },
+  "verified": true
  }
 }
