@@ -28,7 +28,7 @@ from .v2 import (ASPECT_LABELS, CARD_FILE, DROP_SLACK, EDGE_SLACK, EDGE_WIDTH, G
                  runtime_versions, same_runtime, source_hashes)
 
 # Fingerprint of reports/v2/protocol_v2.json as released; None only before the first release build.
-FROZEN_FINGERPRINT: str | None = None
+FROZEN_FINGERPRINT: str | None = "1ca1c3de265fa5e6eb80f0f75bb23a89ac7ef4dee23b238d6f016e553a5e7aae"
 
 def protocol_v2(r: dict, specs: dict[str, dict], results_sha256: str) -> dict:
     """The fingerprinted version-2 protocol. ``results_sha256`` (line endings normalised) binds every number

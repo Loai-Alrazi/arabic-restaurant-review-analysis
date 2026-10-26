@@ -258,3 +258,20 @@ def test_verification_ignores_only_the_run_commit_and_the_python_patch_release()
 
 def test_release_module_is_not_a_source_of_the_results():
     assert "v2_release" not in v2.SOURCES and set(v2.source_hashes()) == set(v2.SOURCES)
+
+
+def test_committed_protocol_has_the_released_fingerprint_and_rebuilds_from_the_committed_results():
+    import hashlib
+
+    from arabic_reviews import v2_release
+
+    committed = json.loads(v2.PROTOCOL_FILE.read_text(encoding="utf-8"))
+    assert committed["fingerprint"] == v2_release.FROZEN_FINGERPRINT
+    text = v2.RESULTS_JSON.read_text(encoding="utf-8")
+    r = json.loads(text)
+    frozen = v2.frozen_specs()
+    specs = {"sentiment": v2.candidates(frozen["sentiment"])[r["released"]], "aspect": frozen["aspect"]}
+    sha = hashlib.sha256(text.replace("\r\n", "\n").encode("utf-8")).hexdigest()
+    assert v2_release.protocol_v2(r, specs, sha)["fingerprint"] == v2_release.FROZEN_FINGERPRINT
+    card = json.loads(v2.CARD_FILE.read_text(encoding="utf-8"))
+    assert card["fingerprint"] == v2_release.FROZEN_FINGERPRINT and card["released_sentiment"] == r["released"]
