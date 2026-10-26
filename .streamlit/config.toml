@@ -1,0 +1,41 @@
+# Theme for the demo page (app/streamlit_app.py). Calm, light, one accent colour.
+# The Arabic web font loads from Google Fonts when online; the system fonts after it keep the page
+# readable offline (Segoe UI and Tahoma on Windows, Geeza Pro on macOS, Noto on Linux and Android).
+
+[theme]
+base = "light"
+font = "'IBM Plex Sans Arabic', 'Segoe UI', Tahoma, 'Geeza Pro', 'Noto Sans Arabic', 'Noto Sans', Arial, sans-serif:https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap"
+baseFontSize = 16
+headingFontSizes = ["2.25rem", "1.4rem", "1.05rem", "1rem", "0.95rem", "0.9rem"]
+headingFontWeights = [700, 700, 600, 600, 600, 600]
+paddingTop = "1.5rem"
+paddingBottom = "3rem"
+
+primaryColor = "#1F6F64"
+backgroundColor = "#FAF9F6"
+secondaryBackgroundColor = "#F1EEE8"
+textColor = "#1D2A2C"
+borderColor = "#DED8CD"
+linkColor = "#1F6F64"
+linkUnderline = false
+
+greenColor = "#2E7D4F"
+greenTextColor = "#1E6B3E"
+redColor = "#C0392B"
+redTextColor = "#A8251B"
+orangeColor = "#C27A12"
+orangeTextColor = "#8A5300"
+blueColor = "#2F6690"
+blueTextColor = "#24557A"
+# The default grey badge text is too light on its background (about 3.5:1).
+grayColor = "#6B7374"
+grayTextColor = "#4B5557"
+grayBackgroundColor = "#ECEAE5"
+
+baseRadius = "0.75rem"
+buttonRadius = "full"
+showWidgetBorder = true
+
+[client]
+# Only the viewer menu; no developer options on the shared page.
+toolbarMode = "minimal"

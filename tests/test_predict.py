@@ -121,12 +121,21 @@ def test_cpu_latency_for_one_review():
 def test_app_smoke():
     from streamlit.testing.v1 import AppTest
 
+    from test_predict_fixture import analyse, assert_no_numbers, unhamza
+
     app = Path(config.ROOT / "app" / "streamlit_app.py")
     at = AppTest.from_file(str(app), default_timeout=60).run()
     assert not at.exception
-    at.text_area[0].set_value("الخدمة بطيئة جدا").run()
-    assert not at.exception and len(at.subheader) == 2
-    at.text_area[0].set_value("hello world").run()
+    text = "الخدمة بطيئة جدا"
+    analyse(at, text)
+    assert not at.exception
+    version = at.session_state["version"]
+    card, expected = at.get_by_key("result"), predict(text, version=version)
+    assert [s.value for s in card.subheader] == ["المشاعر", "الجانب الرئيسي"]
+    for kind, task in (("sentiment", expected.sentiment), ("aspect", expected.aspect)):
+        assert unhamza(task.label) in unhamza(at.get_by_key(f"label-{kind}").markdown[0].value)
+    assert assert_no_numbers(card).count("ثقة النموذج:") == 2
+    analyse(at, "hello world")
     assert not at.exception and at.warning
 
 

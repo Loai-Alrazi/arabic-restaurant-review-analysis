@@ -1,0 +1,147 @@
+/* Right-to-left layout for the Arabic demo page.
+   Streamlit has no RTL setting, so the direction is set on the main area only; the top toolbar keeps
+   its own layout. Selectors use Streamlit test ids and the st-key-* classes of keyed containers. */
+
+[data-testid="stMain"] {
+  direction: rtl;
+  text-align: right;
+}
+
+/* Streamlit aligns text elements to the left explicitly; align them to the start of the line. */
+[data-testid="stMain"] [data-testid="stMarkdownContainer"],
+[data-testid="stMain"] [data-testid="stCaptionContainer"],
+[data-testid="stMain"] [data-testid="stHeading"],
+[data-testid="stMain"] [data-testid="stWidgetLabel"] {
+  text-align: right;
+}
+
+[data-testid="stMain"] textarea {
+  direction: rtl;
+  text-align: right;
+  line-height: 1.8;
+  font-size: 1.05rem;
+}
+
+/* The review boundary clears 3:1 against both theme backgrounds; focus keeps the primary colour. */
+.st-key-review [data-testid="stTextAreaRootElement"] {
+  border-color: #7a746b;
+}
+
+.st-key-review [data-testid="stTextAreaRootElement"]:focus-within {
+  border-color: #1F6F64;  /* primaryColor */
+}
+
+/* List markers sit on the right: move the item indent from the left side to the right side. */
+[data-testid="stMain"] [data-testid="stMarkdownContainer"] li,
+[data-testid="stMain"] [data-testid="stCaptionContainer"] li {
+  margin-left: 0;
+  margin-right: 1.1em;
+  padding-left: 0;
+  padding-right: 0.25em;
+  text-align: right;
+}
+
+/* Table cells carry an inline left alignment, so this one rule needs !important. */
+[data-testid="stMain"] [data-testid="stTableStyledTable"] td,
+[data-testid="stMain"] [data-testid="stTableStyledTable"] th {
+  text-align: right !important;
+}
+
+/* Header text is drawn at 60% of the text colour (about 4:1); this grey gives about 7:1. */
+[data-testid="stMain"] [data-testid="stTableStyledTable"] th {
+  color: #4b5557;
+}
+
+/* Version-2 level tables: cell values (ranges such as 97%–99%) never split across lines. They are
+   wider than a phone screen, so they scroll sideways there; the hint above them shows only on phones. */
+[class*="st-key-v2-levels-"] td,
+[class*="st-key-v2-levels-"] td [data-testid="stMarkdownContainer"],
+[class*="st-key-v2-levels-"] td p {
+  white-space: nowrap !important; /* the cell text sits in a markdown block that sets its own wrapping */
+}
+
+[class*="st-key-scroll-hint-"] {
+  display: none;
+}
+
+@media (max-width: 640px) {
+  [class*="st-key-scroll-hint-"] {
+    display: block;
+  }
+
+  [class*="st-key-v2-levels-"] table {
+    font-size: 0.85rem;
+  }
+}
+
+/* Commands, file names and identifiers stay left-to-right inside Arabic sentences. */
+[data-testid="stMain"] code {
+  direction: ltr;
+  unicode-bidi: isolate;
+}
+
+/* Short identifiers in lists (versions, settings, DOI) are not split across lines. */
+[data-testid="stMain"] li code {
+  white-space: nowrap;
+}
+
+/* Captions are drawn at 60% opacity by default (about 4:1); 75% keeps them muted at about 6:1. */
+[data-testid="stMain"] [data-testid="stCaptionContainer"] {
+  opacity: 0.75;
+}
+
+[data-testid="stMain"] textarea::placeholder {
+  color: #5f6869;
+  opacity: 1;
+}
+
+/* The English keyboard hint under the text area; the page has its own Arabic button instead. */
+[data-testid="InputInstructions"] {
+  display: none;
+}
+
+/* Decorative icons drawn with the icon font Streamlit already loads (see icon() in the page). */
+.decor-icon {
+  font-family: "Material Symbols Rounded";
+  font-weight: 400;
+  font-style: normal;
+  font-size: 1em;
+  line-height: 1;
+  display: inline-block;
+  vertical-align: -0.15em;
+  white-space: nowrap;
+  user-select: none;
+}
+
+/* Example and action buttons: at least 44 px tall for touch. */
+.st-key-actions button,
+.st-key-examples button {
+  min-height: 2.75rem;
+}
+
+/* Examples wrap into rows at every width, so none is hidden. On phones the chips are narrower and
+   closer together, so the examples take few rows; they keep their 44 px touch height. */
+@media (max-width: 640px) {
+  .st-key-example-row {
+    gap: 0.4rem;
+  }
+
+  .st-key-example-row button {
+    padding-left: 0.6rem;
+    padding-right: 0.6rem;
+  }
+}
+
+/* The result card stands out from the page background. */
+.st-key-result {
+  background: #ffffff;
+}
+
+/* The two predicted labels: the largest words on the page after the title. */
+.st-key-label-sentiment p,
+.st-key-label-aspect p {
+  font-size: 2.1rem;
+  font-weight: 700;
+  line-height: 1.35;
+  margin: 0;
+}
