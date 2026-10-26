@@ -243,3 +243,18 @@ def test_released_rule_never_widens_a_version_1_level():
     for label in L:
         for level in ("high", "medium"):
             assert kept[label][level] is None or kept[label][level] >= {"high": 0.60, "medium": 0.50}[level]
+
+
+def test_verification_ignores_only_the_run_commit_and_the_python_patch_release():
+    from arabic_reviews import v2_release
+
+    base = dict(git_sha="abc", versions={"python": "3.12.12", "numpy": "2.5.4"}, adopted=False)
+    other = dict(base, git_sha="def", versions={"python": "3.12.13", "numpy": "2.5.4"})
+    assert v2_release.comparable(json.dumps(base)) == v2_release.comparable(json.dumps(other))
+    for changed in (dict(base, adopted=True), dict(base, versions={"python": "3.13.0", "numpy": "2.5.4"}),
+                    dict(base, versions={"python": "3.12.12", "numpy": "2.6.0"})):
+        assert v2_release.comparable(json.dumps(base)) != v2_release.comparable(json.dumps(changed))
+
+
+def test_release_module_is_not_a_source_of_the_results():
+    assert "v2_release" not in v2.SOURCES and set(v2.source_hashes()) == set(v2.SOURCES)

@@ -62,9 +62,10 @@
 ```bash
 python -m arabic_reviews v2-experiments   # ≈ 20 دقيقة على CPU: التشخيص والاختيار وNested CV والثقة → reports/v2/
 python -m arabic_reviews v2-build         # بروتوكول الإصدار 2 وبطاقته ونماذجه (محلية) دون قراءة الاختبار
+python -m arabic_reviews v2-build --verify   # يعيد حساب كل النتائج أولًا (≈ 20 دقيقة) ولا يبني إلا إن طابقت المنشورة
 ```
 
-كلا الأمرين يقرأ التطوير فقط، ويرفض داخل العملية فتح ملف الاختبار وتنبؤاته وتقاريره، ويسجل الملفات التي فتحها.
+كلا الأمرين يقرأ التطوير فقط، ويرفض داخل العملية فتح ملف الاختبار وتنبؤاته وتقاريره، ويسجل الملفات التي قرأها وكتبها. والبناء يرفض نتائج حُسبت ببيانات أو كود أو إصدارات مكتبات أخرى، ويرفض أي بروتوكول لا يحمل البصمة المنشورة (وهي تشمل بصمة ملف النتائج).
 
 ## البيانات والترخيص
 
@@ -196,7 +197,7 @@ python -m nbconvert --to notebook --execute --inplace notebooks/project_walkthro
 ## بنية المستودع
 
 ```
-src/arabic_reviews/   config · ingest · text · validate · split · eda · features · experiments · protocol · final · predict · reports · walkthrough · cues · v2 · __main__
+src/arabic_reviews/   config · ingest · text · validate · split · eda · features · experiments · protocol · final · predict · reports · walkthrough · cues · v2 · v2_release · __main__
 notebooks/            project_walkthrough.ipynb: دفتر المشروع من المشكلة إلى النتائج
 app/streamlit_app.py  الواجهة العربية
 tests/                اختبارات الوحدة والتكامل

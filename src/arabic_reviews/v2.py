@@ -3,13 +3,12 @@
 ``run_experiments`` scores three pre-declared feature candidates against the frozen version-1
 configuration on the selection folds, estimates the whole selection procedure with nested grouped
 CV on fresh seeds, checks the stability of the chosen candidate on those folds, derives certainty
-levels per predicted class and reports calibration. ``build`` freezes the version-2 protocol and
-fits the version-2 pipelines on the whole development partition.
+levels per predicted class and reports calibration. Freezing the release and building its
+pipelines is ``v2_release`` (kept apart, so build changes never alter what the results depend on).
 
 The old held-out test is never read: both commands run inside ``guard()``, which refuses to open
 the test partition, saved test predictions and the test reports, and records which project data
-files were read and written. Version-1 files are not written. ``build(verify=True)`` recomputes
-every result first and refuses to build unless it equals the committed ``results.json``.
+files were read and written. Version-1 files are not written.
 """
 
 from __future__ import annotations
@@ -20,12 +19,10 @@ import json
 import os
 import re
 import sys
-import tempfile
 import time
 from datetime import datetime, timezone
 from pathlib import Path
 
-import joblib
 import numpy as np
 import pandas as pd
 from sklearn.base import clone
@@ -62,6 +59,7 @@ MIN_GROUPS = 30
 EDGE_WIDTH, EDGE_SLACK = 0.10, 0.05  # a level must also hold at its lower edge (plan section 9)
 DROP_SLACK = 0.05
 CALIBRATION_BINS = 10
+# Modules the results depend on (v2_release only freezes and builds from them, so it is not listed).
 SOURCES = ("config", "cues", "experiments", "features", "final", "predict", "protocol", "split", "text", "v2")
 LOG_COLUMNS = ["exp_id", "timestamp", "git_sha", "task", "candidate", "scheme", "spec", "features", "params",
                "macro_f1_mean", "macro_f1_std", "fold_scores", "class_f1_folds", "accuracy_mean",
@@ -138,10 +136,13 @@ def frozen_specs() -> dict[str, dict]:
 
 def candidates(v1: dict) -> dict[str, dict]:
     """``V1`` plus the three pre-declared feature changes (plan section 3), same model."""
-    return {"V1": dict(v1, name="V1"),
-            "H1_phrases": dict(v1, name="H1_phrases", representation="word12+char25"),
-            "H2_cues": dict(v1, name="H2_cues", cues=True),
-            "H3_both": dict(v1, name="H3_both", representation="word12+char25", cues=True)}
+    return {"V1": dict(v1, name="V1", notes="version-1 configuration (reference)"),
+            "H1_phrases": dict(v1, name="H1_phrases", representation="word12+char25",
+                               notes="word bigrams: lukewarm and negated phrases span two words"),
+            "H2_cues": dict(v1, name="H2_cues", cues=True,
+                            notes="polarity-cue block: neutral is mostly mixed polarity, which n-grams cannot combine"),
+            "H3_both": dict(v1, name="H3_both", representation="word12+char25", cues=True,
+                            notes="both changes (2 x 2 ablation)")}
 
 
 def with_outer_folds(dev: pd.DataFrame) -> pd.DataFrame:
@@ -610,7 +611,7 @@ def _run(dev: pd.DataFrame | None, check_v1: bool, out_dir: Path | None = None, 
         dev = with_outer_folds(split.load_dev() if real else dev)
         frozen = frozen_specs()
         specs = candidates(frozen["sentiment"])
-        aspect_spec = dict(frozen["aspect"], name="V1_aspect")
+        aspect_spec = dict(frozen["aspect"], name="V1_aspect", notes="version-1 aspect model (unchanged)")
         sel = Scheme(dev, SELECTION, "sentiment", LABELS)
         out = Scheme(dev, OUTER, "sentiment", LABELS)
         sel_aspect = Scheme(dev, SELECTION, "aspect", ASPECT_LABELS)
@@ -622,14 +623,16 @@ def _run(dev: pd.DataFrame | None, check_v1: bool, out_dir: Path | None = None, 
         if check_v1 and max(abs(a - b) for a, b in zip(scores["V1"]["macro"], v1_log)) > 1e-6:
             raise RuntimeError("V1 does not reproduce the logged version-1 fold scores")
         for name, spec in specs.items():
-            log_row("sentiment", name, "selection", spec, scores[name], sel.seconds(spec), LABELS, append=append)
+            log_row("sentiment", name, "selection", spec, scores[name], sel.seconds(spec), LABELS,
+                    notes=spec["notes"], append=append)
         selection = choose(scores)
         chosen = selection["chosen"]
 
         # nested estimate and stability (section 5)
         outer_scores = {name: out.metrics(spec) for name, spec in specs.items()}
         for name, spec in specs.items():
-            log_row("sentiment", name, "outer", spec, outer_scores[name], out.seconds(spec), LABELS, append=append)
+            log_row("sentiment", name, "outer", spec, outer_scores[name], out.seconds(spec), LABELS,
+                    notes=spec["notes"], append=append)
         nest = nested(dev, specs, out)
         proc_preds = [predicted(P, LABELS) for P in nest["proba"]]
         proc_metrics = merge([fold_metrics(out.y, p, dev[c].to_numpy(), LABELS) for p, c in zip(proc_preds, OUTER)])
@@ -654,9 +657,9 @@ def _run(dev: pd.DataFrame | None, check_v1: bool, out_dir: Path | None = None, 
         # aspect: the version-1 model, for joint accuracy and certainty
         aspect_sel, aspect_out = sel_aspect.metrics(aspect_spec), out_aspect.metrics(aspect_spec)
         log_row("aspect", "V1_aspect", "selection", aspect_spec, aspect_sel, sel_aspect.seconds(aspect_spec),
-                ASPECT_LABELS, append=append)
+                ASPECT_LABELS, notes=aspect_spec["notes"], append=append)
         log_row("aspect", "V1_aspect", "outer", aspect_spec, aspect_out, out_aspect.seconds(aspect_spec),
-                ASPECT_LABELS, append=append)
+                ASPECT_LABELS, notes=aspect_spec["notes"], append=append)
         aspect_v1_log = experiments.fold_scores(experiments.read_log(), "aspect/m4_logreg_C1")
         if check_v1 and max(abs(a - b) for a, b in zip(aspect_sel["macro"], aspect_v1_log)) > 1e-6:
             raise RuntimeError("the aspect model does not reproduce the logged version-1 fold scores")
@@ -916,134 +919,3 @@ def results_markdown(r: dict) -> str:
                      + " | ".join(f"{m['label']} ({m['level']})" for m in row["models"].values()) + " |")
     lines.append("")
     return "\n".join(lines)
-
-
-# ---- build (freeze version 2) ---------------------------------------------------------------
-
-def protocol_v2(r: dict, specs: dict[str, dict], results_sha256: str) -> dict:
-    """The fingerprinted version-2 protocol. ``results_sha256`` (line endings normalised) binds every number
-    and decision of results.json, so an edited results file changes the fingerprint."""
-    pipelines = {task: protocol.pipeline_params(spec) for task, spec in specs.items()}
-    body = dict(results_sha256=results_sha256,
-        version="v2", plan="docs/V2_PLAN.md", released=r["released"], adopted=r["adopted"],
-        configurations={task: experiments._spec_summary(spec) | {"params": spec.get("params", {}),
-                                                                 "cues": bool(spec.get("cues"))}
-                        for task, spec in specs.items()},
-        pipelines=pipelines,
-        certainty={task: dict(score="top class probability", thresholds_by_class=r["certainty"][task]["thresholds"])
-                   for task in specs},
-        cues_sha256=r["cues_sha256"], dev=r["dev"], versions=r["versions"], sources=r["sources"],
-        results_commit=r["git_sha"],
-        rules=dict(min_gain=MIN_GAIN, min_neutral_gain=MIN_NEUTRAL_GAIN, min_other_change=MIN_OTHER_CHANGE,
-                   min_wins=MIN_WINS, outer_seeds=OUTER_SEEDS, grid=GRID, targets=dict(TARGETS),
-                   min_groups=MIN_GROUPS, edge=[EDGE_WIDTH, EDGE_SLACK], drop_slack=DROP_SLACK),
-    )
-    body = _round(json.loads(json.dumps(body, ensure_ascii=False, default=list)))
-    fingerprint = hashlib.sha256(json.dumps(body, sort_keys=True, ensure_ascii=False).encode("utf-8")).hexdigest()
-    return dict(body, fingerprint=fingerprint)
-
-
-def _without_commit(text: str) -> dict:
-    r = json.loads(text)
-    r.pop("git_sha", None)  # the commit of the run, the only field a recomputation may change
-    return r
-
-
-def verify_results() -> None:
-    """Recompute every result (about 20 minutes) into a temporary folder, without adding log rows, and
-    stop unless it equals the committed results.json apart from the commit of the run."""
-    with tempfile.TemporaryDirectory() as tmp:
-        _run(None, check_v1=True, out_dir=Path(tmp), append=False)
-        fresh = (Path(tmp) / RESULTS_JSON.name).read_text(encoding="utf-8")
-    if _without_commit(fresh) != _without_commit(RESULTS_JSON.read_text(encoding="utf-8")):
-        raise RuntimeError("recomputed results differ from reports/v2/results.json; the build was not started")
-
-
-def build(verify: bool = False) -> dict:
-    """Freeze the version-2 protocol from ``results.json`` and fit the version-2 pipelines on the whole
-    development partition (local files), then write the version-2 model card. With ``verify`` every
-    result is recomputed first and must equal the committed one."""
-    if verify:
-        verify_results()
-    with guard() as opened:
-        cue_sha = check_frozen_cues()
-        results_text = RESULTS_JSON.read_text(encoding="utf-8")
-        r = json.loads(results_text)
-        dev = split.load_dev()
-        if r["cues_sha256"] != cue_sha or r["dev"]["sha256"] != file_sha256(config.DEV_FILE) \
-                or r["dev"]["split_sha256"] != file_sha256(config.SPLIT_FILE):
-            raise RuntimeError("results.json was computed on other data or another cue list; re-run v2-experiments")
-        if r.get("sources") != source_hashes():
-            raise RuntimeError("results.json was computed by other code; re-run v2-experiments")
-        runtime = runtime_versions()
-        if not same_runtime(r["versions"]):
-            raise RuntimeError("the installed library versions differ from those of results.json; install "
-                               "requirements.txt or re-run v2-experiments")
-        frozen = frozen_specs()
-        specs = {"sentiment": candidates(frozen["sentiment"])[r["released"]], "aspect": frozen["aspect"]}
-        p = protocol_v2(r, specs, hashlib.sha256(results_text.replace("\r\n", "\n").encode("utf-8")).hexdigest())
-        X = dev["text"].to_numpy()
-        MODELS_DIR.mkdir(parents=True, exist_ok=True)
-        digests = {}
-        for task, spec in specs.items():
-            model = build_pipeline(spec).fit(X, dev[experiments.TASKS[task]].to_numpy())
-            joblib.dump(model, MODELS_DIR / f"{task}.joblib")
-            digests[task] = final.dev_digest(model, X)
-        recorded = json.loads(final.DIGESTS_FILE.read_text(encoding="utf-8"))
-        same_versions = recorded["versions"] == final.runtime_versions()
-        for task in specs:
-            same_model = task == "aspect" or r["released"] == "V1"
-            if same_model and same_versions and digests[task] != recorded["digests"][task]:
-                raise RuntimeError(f"the version-2 {task} model should equal the version-1 one but its digest differs")
-        card = model_card_v2(r, p, specs, digests, dev)
-        build_record = dict(read=sorted(opened["read"]), written=sorted(opened["written"]), versions=runtime,
-                            verified=verify)  # not part of the fingerprint
-    PROTOCOL_FILE.write_text(json.dumps(dict(p, build=build_record), ensure_ascii=False, indent=1) + "\n",
-                             encoding="utf-8", newline="\n")
-    CARD_FILE.write_text(json.dumps(card, ensure_ascii=False, indent=1) + "\n", encoding="utf-8", newline="\n")
-    return dict(fingerprint=p["fingerprint"], released=r["released"], digests=digests, read=build_record["read"],
-                verified=verify)
-
-
-def model_card_v2(r: dict, p: dict, specs: dict, digests: dict, dev: pd.DataFrame) -> dict:
-    lengths = dev.text.str.len()
-    sel = r["selection"]["scores"]
-    return _round(dict(
-        name="Arabic cafe review sentiment and main-aspect classifiers, version 2", version="v2",
-        fingerprint=p["fingerprint"], released_sentiment=r["released"], adopted_new_sentiment_model=r["adopted"],
-        evaluation="development data only (grouped CV); no independent test exists for version 2, and the old "
-                   "held-out test was not used",
-        trained_on=dict(partition="development", rows=len(dev), sha256=r["dev"]["sha256"],
-                        split_sha256=r["dev"]["split_sha256"]),
-        source=dict(record=config.SOURCE["record"], doi=config.SOURCE["doi"], license=config.SOURCE["license"]),
-        versions=runtime_versions(),
-        tasks={task: dict(
-            file=f"models/v2/{task}.joblib", labels=LABELS if task == "sentiment" else ASPECT_LABELS,
-            configuration=p["configurations"][task], same_as_v1=(task == "aspect" or r["released"] == "V1"),
-            dev_digest=digests[task],
-            certainty=dict(thresholds_by_class=r["certainty"][task]["thresholds"],
-                           outer_levels=r["certainty"][task]["outer_levels"],
-                           v1_thresholds=r["certainty"][task]["v1_thresholds"],
-                           v1_rule_outer_levels=r["certainty"][task]["v1_rule_outer_levels"],
-                           measured_on="outer folds (seeds 300-302) of the development partition, every review "
-                                       "three times; frequencies observed on development data, not guarantees"),
-            cv=(dict(selection=sel[r["released"]], outer=r["outer_scores"][r["released"]])
-                if task == "sentiment" else r["aspect"]),
-        ) for task in specs},
-        nested_vs_v1=dict(gain=r["nested"]["bootstrap"]["macro"], neutral=r["nested"]["bootstrap"][NEUTRAL],
-                          chosen_counts=r["nested"]["chosen_counts"]),
-        experiment=dict(
-            chosen_on_selection_folds=r["selection"]["chosen"], adopted=r["adopted"],
-            candidates={name: dict(selection_macro_f1=s["macro"]["mean"], selection_neutral_f1=s["per_class"][NEUTRAL],
-                                   outer_macro_f1=r["outer_scores"][name]["macro"]["mean"],
-                                   outer_neutral_f1=r["outer_scores"][name]["per_class"][NEUTRAL])
-                        for name, s in sel.items()},
-            stability_vs_v1=(None if r["stability"] is None else
-                             dict(gain=r["stability"]["bootstrap"]["macro"], neutral=r["stability"]["bootstrap"][NEUTRAL])),
-            rule="adopted only if the nested CV estimate of the whole selection procedure gains >= 0.01 Macro-F1 "
-                 "with a 95% interval above 0, a positive neutral F1 change and no positive or negative F1 drop "
-                 "larger than 0.02 (docs/V2_PLAN.md section 5)"),
-        joint_accuracy=r["joint_accuracy"],
-        input=dict(development_length_chars=dict(min=int(lengths.min()), median=float(lengths.median()),
-                                                 p99=float(lengths.quantile(0.99)), max=int(lengths.max()))),
-    ))

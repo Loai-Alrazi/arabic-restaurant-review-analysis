@@ -122,7 +122,8 @@ def cmd_v2_experiments() -> None:
 
 
 def cmd_v2_build(verify: bool = False) -> None:
-    from .v2 import CARD_FILE, PROTOCOL_FILE, build
+    from .v2 import CARD_FILE, PROTOCOL_FILE
+    from .v2_release import build
 
     r = build(verify=verify)
     if verify:
